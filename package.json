@@ -1,0 +1,21 @@
+{
+  "name": "svg-cli-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Object-oriented SVG command-line editor for Lab1",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "cli": "tsx src/main.ts",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
