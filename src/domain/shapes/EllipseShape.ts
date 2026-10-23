@@ -47,12 +47,20 @@ export class EllipseShape extends StyledShape {
     this._cy += dy;
   }
 
-  public override scale(factor: number): void {
+  public override assertCanScale(factor: number): void {
     Shape.assertScaleFactor(factor);
-    this._cx *= factor;
-    this._cy *= factor;
-    this._rx *= factor;
-    this._ry *= factor;
+    Shape.scaledValue("cx", this._cx, factor);
+    Shape.scaledValue("cy", this._cy, factor);
+    Shape.scaledValue("rx", this._rx, factor);
+    Shape.scaledValue("ry", this._ry, factor);
+  }
+
+  public override scale(factor: number): void {
+    this.assertCanScale(factor);
+    this._cx = Shape.scaledValue("cx", this._cx, factor);
+    this._cy = Shape.scaledValue("cy", this._cy, factor);
+    this._rx = Shape.scaledValue("rx", this._rx, factor);
+    this._ry = Shape.scaledValue("ry", this._ry, factor);
   }
 
   public override accept<T>(visitor: ShapeVisitor<T>): T {

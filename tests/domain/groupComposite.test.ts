@@ -87,4 +87,18 @@ describe("GroupShape composite behavior", () => {
     expect([circle.cx, circle.cy, circle.r]).toEqual([5, 6, 7]);
     expect(group.children.map((shape) => shape.id)).toEqual(["rect", "circle"]);
   });
+
+  it("preflights numeric overflow before scaling any descendant", () => {
+    const first = new RectShape("first", 1, 1, 1, 1);
+    const second = new CircleShape("second", 2, 2, 2);
+    const group = new GroupShape("group");
+    group.appendChild(first);
+    group.appendChild(second);
+
+    expect(() => group.scale(1e308)).toThrow(
+      "numeric overflow while scaling: cx"
+    );
+    expect([first.x, first.y, first.width, first.height]).toEqual([1, 1, 1, 1]);
+    expect([second.cx, second.cy, second.r]).toEqual([2, 2, 2]);
+  });
 });

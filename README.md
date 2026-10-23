@@ -2,7 +2,7 @@
 
 高级软件课程作业。
 
-Lab1 已完成 Phase 1 工程架构与 Phase 2 SVG 图形领域模型。当前包含五种叶子图形、`GroupShape` Composite 容器、`SvgDocument`、领域校验和自动化测试；CLI、命令历史与 SVG IO 按课程要求留到后续阶段。
+Lab1 已完成 Phase 1–3。当前可通过 `npm run cli` 使用 `init`、`create`、`delete`、`move`、`scale`、`set` 和 `help` 编辑 SVG 文档；CLI、应用命令、图形领域模型分层实现。命令历史、SVG IO 与显示类命令按课程要求留到后续阶段。
 
 ```text
 npm install

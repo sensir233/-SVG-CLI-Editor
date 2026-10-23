@@ -7,7 +7,8 @@ export type DomainErrorCode =
   | "SHAPE_NOT_FOUND"
   | "INVALID_PARENT"
   | "CYCLE_DETECTED"
-  | "INVALID_CANVAS_SIZE";
+  | "INVALID_CANVAS_SIZE"
+  | "NUMERIC_OVERFLOW";
 
 export class DomainError extends Error {
   public readonly code: DomainErrorCode;

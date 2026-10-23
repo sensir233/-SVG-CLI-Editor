@@ -49,12 +49,20 @@ export class LineShape extends StyledShape {
     this._y2 += dy;
   }
 
-  public override scale(factor: number): void {
+  public override assertCanScale(factor: number): void {
     Shape.assertScaleFactor(factor);
-    this._x1 *= factor;
-    this._y1 *= factor;
-    this._x2 *= factor;
-    this._y2 *= factor;
+    Shape.scaledValue("x1", this._x1, factor);
+    Shape.scaledValue("y1", this._y1, factor);
+    Shape.scaledValue("x2", this._x2, factor);
+    Shape.scaledValue("y2", this._y2, factor);
+  }
+
+  public override scale(factor: number): void {
+    this.assertCanScale(factor);
+    this._x1 = Shape.scaledValue("x1", this._x1, factor);
+    this._y1 = Shape.scaledValue("y1", this._y1, factor);
+    this._x2 = Shape.scaledValue("x2", this._x2, factor);
+    this._y2 = Shape.scaledValue("y2", this._y2, factor);
   }
 
   public override accept<T>(visitor: ShapeVisitor<T>): T {

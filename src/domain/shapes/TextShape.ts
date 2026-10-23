@@ -40,10 +40,16 @@ export class TextShape extends StyledShape {
     this._y += dy;
   }
 
-  public override scale(factor: number): void {
+  public override assertCanScale(factor: number): void {
     Shape.assertScaleFactor(factor);
-    this._x *= factor;
-    this._y *= factor;
+    Shape.scaledValue("x", this._x, factor);
+    Shape.scaledValue("y", this._y, factor);
+  }
+
+  public override scale(factor: number): void {
+    this.assertCanScale(factor);
+    this._x = Shape.scaledValue("x", this._x, factor);
+    this._y = Shape.scaledValue("y", this._y, factor);
   }
 
   public override accept<T>(visitor: ShapeVisitor<T>): T {

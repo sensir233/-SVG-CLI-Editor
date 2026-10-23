@@ -47,12 +47,20 @@ export class RectShape extends StyledShape {
     this._y += dy;
   }
 
-  public override scale(factor: number): void {
+  public override assertCanScale(factor: number): void {
     Shape.assertScaleFactor(factor);
-    this._x *= factor;
-    this._y *= factor;
-    this._width *= factor;
-    this._height *= factor;
+    Shape.scaledValue("x", this._x, factor);
+    Shape.scaledValue("y", this._y, factor);
+    Shape.scaledValue("width", this._width, factor);
+    Shape.scaledValue("height", this._height, factor);
+  }
+
+  public override scale(factor: number): void {
+    this.assertCanScale(factor);
+    this._x = Shape.scaledValue("x", this._x, factor);
+    this._y = Shape.scaledValue("y", this._y, factor);
+    this._width = Shape.scaledValue("width", this._width, factor);
+    this._height = Shape.scaledValue("height", this._height, factor);
   }
 
   public override accept<T>(visitor: ShapeVisitor<T>): T {

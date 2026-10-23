@@ -2,12 +2,12 @@
 
 ## 1. 当前阶段与边界
 
-当前已完成 Lab1 Phase 2，本文件在 Phase 1 架构契约上记录图形领域模型的实际落地。仓库现在包含 TypeScript 工程骨架、五种叶子图形、`GroupShape` 容器、`SvgDocument`、领域错误和领域单元测试；命令、SVG IO 与 REPL 仍将在后续阶段实现。
+当前已完成 Lab1 Phase 3，本文件在前两阶段基础上记录领域模型接入应用命令和 REPL 后的实际结构。仓库现在包含可交互 REPL、独立命令类、命令注册表、图形工厂、会话服务，以及完整的基础图形领域模型；CommandHistory、IO 和显示类命令仍将在后续阶段实现。
 
 后续阶段才做的工作：
 
 - 不实现 `box` 插件或任何插件注册机制的具体代码。
-- 不实现编辑命令、CommandHistory、undo/redo、SVG 读写或交互式 REPL。
+- 不实现 CommandHistory、Memento、undo/redo、SVG 读写或显示类命令。
 - 不把课程示例输出写成已通过的测试结果。
 
 功能验收契约见 [`Phase1AcceptanceChecklist.md`](Phase1AcceptanceChecklist.md)。
@@ -35,25 +35,32 @@ src/
 │       └── GroupShape.ts
 ├── application/
 │   ├── EditorSession.ts
-│   ├── CommandHistory.ts
-│   ├── DocumentSnapshot.ts
+│   ├── CommandRegistry.ts
+│   ├── CommandArguments.ts
+│   ├── EditorCommand.ts
+│   ├── ShapeFactory.ts
+│   ├── ShapeTypeNameVisitor.ts
+│   ├── ApplicationError.ts
 │   └── commands/
-│       ├── EditorCommand.ts
-│       ├── UndoableEditCommand.ts
-│       └── ...各编辑与文档命令
+│       ├── InitCommand.ts
+│       ├── CreateShapeCommand.ts
+│       ├── DeleteShapeCommand.ts
+│       ├── MoveShapeCommand.ts
+│       ├── ScaleShapeCommand.ts
+│       ├── SetAttributeCommand.ts
+│       └── HelpCommand.ts
 ├── svg/
 │   ├── SvgDocumentReader.ts
 │   └── SvgDocumentWriter.ts
 ├── cli/
 │   ├── CliApplication.ts
 │   ├── CommandLexer.ts
-│   └── CommandRegistry.ts
+│   └── CliParsingError.ts
 └── main.ts
 
 tests/
 ├── domain/
 ├── application/
-├── svg/
 └── cli/
 ```
 
@@ -74,6 +81,13 @@ Phase 2 实际领域文件与上表的对应关系：
 - 新增 `ShapeVisitor.ts` 作为双重分派契约；具体访问者留到显示和 SVG 序列化阶段实现。
 - `StyledShape.ts` 封装 `fill`、`stroke`、`stroke-width`，被五种叶子和 `GroupShape` 共同继承。
 
+Phase 3 实际应用/CLI 结构：
+
+- `EditorSession` 持有当前 `SvgDocument`，并向命令提供文档、图形和容器查询，是 CLI 的唯一应用入口。
+- `CommandRegistry` 集中完成命令名分派；每个命令类独立处理自己的参数和业务编排。
+- `ShapeFactory` 集中完成图形类型名到构造器的映射，且不包含 `box`。
+- `CommandLexer` 只处理空行、注释、空白和双引号；`CliApplication` 负责提示符、逐行读取、错误文本和输出流。
+
 ### 2.2 组件/包依赖图
 
 ```plantuml
@@ -92,7 +106,9 @@ package "src/cli" {
 
 package "src/application" {
   [Editor Session] as Session
-  [Command + History] as Commands
+  [Editor Commands] as Commands
+  [Command Registry] as Registry
+  [Shape Factory] as Factory
   [Document Ports] as Ports
 }
 
@@ -106,12 +122,16 @@ package "src/domain" {
 }
 
 Main --> Cli
+Main --> Session
+Main --> Registry
+Main --> Factory
 Main --> Svg
 Main --> Shapes
 Cli --> Session
-Cli --> Commands
 Cli --> Parser
-Session --> Commands
+Session --> Registry
+Registry --> Commands
+Commands --> Factory
 Session --> Document
 Commands --> Document
 Commands --> Shapes
@@ -170,25 +190,45 @@ set(id, attr, v)  -> shape.setAttribute(attr, v)
 
 ### 2.5 Command 模式与历史
 
-每条编辑命令是一个对象，至少包含：
+每条命令是一个独立对象，实现统一的 `EditorCommand` 接口：
 
 ```text
 EditorCommand
-├── execute(context)
-├── undo()
-└── redo()
+├── name / usage / description
+└── execute(context, args)
 ```
 
-设计约定：
+Phase 3 已落地 `InitCommand`、`CreateShapeCommand`、`DeleteShapeCommand`、`MoveShapeCommand`、`ScaleShapeCommand`、`SetAttributeCommand` 和 `HelpCommand`。`CommandRegistry` 是唯一按命令名分派的入口，`ShapeFactory` 是唯一按图形类型创建实例的位置。两者都是课程允许的字符串分派集中点。
+
+调用链为：
+
+```text
+CliApplication
+  -> EditorSession.execute(commandName, tokens)
+  -> CommandRegistry
+  -> concrete EditorCommand
+  -> SvgDocument / Shape polymorphic operations
+```
+
+CLI 只负责词法分析和文本 I/O；参数个数、类型、容器存在性等命令语法由 application 命令处理；几何和层级规则仍由 domain 处理。`EditorSession` 是当前工作文档和命令执行的单一入口，不会解析具体命令语法。
+
+为第五阶段 undo/redo 预留的方式：
+
+- CLI 与 `CommandExecutor` 接口无需改变；历史逻辑可以插入 `EditorSession.execute` 的统一事务边界。
+- 每个编辑命令已独立成类，后续可引入 `UndoableCommand` 扩展接口，而不把撤销逻辑散落到各命令或 CLI。
+- Memento 可以围绕一次成功的 registry dispatch 捕获文档前后状态；失败 dispatch 不进入历史。
+- 当前命令对象无状态，参数由每次调用传入，避免不同执行之间复用可变命令实例状态。
+
+后续阶段设计约定：
 
 - `UndoableEditCommand` 采用模板方法：先验证，再执行领域操作，最后形成可恢复状态。失败时不留下部分修改。
-- `CommandHistory` 维护 undo/redo 两个栈；一条用户命令对应一个对象，所以复杂 `group` 也自然成为一个原子 undo 单元。
+- `CommandHistory` 维护 undo/redo 两个栈；一条用户命令对应一个历史单元。
 - 命令通过 `DocumentSnapshot`（Memento）记录执行前后的完整文档状态。相比为十几种命令分别编写逆操作，它对删除、重排、跨容器移动和后续插件内部结构更稳健，也更容易保证错误原子性。
 - 代价是每步保存整份文档，时间/空间复杂度为 O(文档大小)。本课程文档规模较小，这一取舍优先保证正确性与扩展性；若未来文档变大，可在 `Command` 接口不变的前提下换成结构化补丁。
 - 显示命令不进入历史。文档命令和 `canvas` 尺寸修改会清空历史并设置 IO 屏障；下一次成功编辑解除屏障，但不会恢复跨越 IO 的旧历史。
 - 命令的“成功”以领域操作全部完成且结果可生成为准。解析失败、验证失败和 IO 失败都不入栈、不清空 redo，也不改变文档。
 
-命令名 `Map<string, CommandFactory>` 只在 `CommandRegistry` 中做名称到实现的查找；图形类型名只由 `ShapeFactory` 负责。除这两处外不按字符串标签写分支。
+命令名 `Map<string, EditorCommand>` 只在 `CommandRegistry` 中做名称到实现的查找；图形类型名只由 `ShapeFactory` 负责。除这两处外没有按字符串标签执行的图形分派。
 
 ### 2.6 SVG 端口与适配
 
@@ -207,7 +247,11 @@ DocumentWriter.write(document, path): void
 
 每个命令遵循“验证 → 生成候选状态 → 提交”的顺序。任何验证或执行异常都不会提交候选状态，因此输入错误时文档、当前选中状态和历史栈保持不变。
 
-Phase 2 已实现 `DomainError.code` 和稳定的领域错误消息。当前覆盖非法 ID、非法数字、非正缩放因子、未知属性、重复 ID、未找到图形、非法父节点、层级循环和非法画布尺寸。CLI 文本映射属于第三阶段。
+Phase 2 已实现 `DomainError.code` 和稳定的领域错误消息。当前覆盖非法 ID、非法数字、非正缩放因子、未知属性、重复 ID、未找到图形、非法父节点、层级循环和非法画布尺寸；Phase 3 完成了 CLI 文本映射。
+
+Phase 3 新增 `ApplicationError` 表达无文档、未知命令、参数用法和未知图形类型，并在 `EditorSession` 边界把 `DomainError` 归一为应用错误。CLI 统一输出 `error: <message>`，因此 REPL 不需要导入领域层。失败命令不替换文档，也不会让 REPL 退出。
+
+领域为“缩放溢出”增加了无副作用的 `assertCanScale` 预检：叶子验证全部缩放结果有限，Group 先递归验证所有后代再开始修改。这样超大但有限的 factor 导致中间值溢出时，不会留下部分缩放状态。
 
 ## 3. 变化点与预留策略
 
@@ -265,14 +309,43 @@ Phase 2 已实现 `DomainError.code` 和稳定的领域错误消息。当前覆�
 - 同时补充访问者多态测试、非有限 movement 的原子性测试和“领域层没有 `box` 文件/关键字”的架构测试。最终测试为 36 项，其中 33 项为领域行为/架构测试，3 项为原有工程 scaffold 测试。
 - 全程未修改 `application`、`svg`、`cli` 或入口文件，第二阶段改动范围保持在领域层与对应测试/文档内。
 
+### 轮次 5：领域接入 CLI 前的接口审查（2026-10-23）
+
+- 逐项检查现有 `Shape`、`SvgDocument` 和测试后，确认创建、删除、查询、父子关系和递归操作已有足够接口，不重写领域图形逻辑。
+- 发现现有 `scale` 只验证 factor 本身，极大但仍有限的 factor 可能把坐标或尺寸乘成 `Infinity`；Group 逐子项缩放还可能出现前几个子项成功、后一个失败的部分修改。
+- 最小修改领域：为 `Shape` 增加公开的无副作用缩放预检契约 `assertCanScale`，叶子预计算并检查所有缩放结果，Group 递归预检全部后代后才执行缩放。新增 `NUMERIC_OVERFLOW` 领域错误。
+- 该修改保持 Shape 多态调用不变，应用 `scale` 命令仍只调用 `shape.scale(factor)`，不增加类型分支。
+
+### 轮次 6：应用层首轮实现与编译纠正（2026-10-23）
+
+- 按职责新增 `CommandRegistry`、`ShapeFactory`、`EditorSession`、命令上下文/结果/接口，以及七个独立命令类；CLI 新增词法器、解析错误和 REPL。
+- 初次编译失败：多个命令类错误地把局部变量命名为 `arguments`，严格模式类体禁止该标识符；同时可选数组索引在 `rejectUsage()` 后未稳定收窄，产生字符串可能为 `undefined` 的错误。
+- 纠正为 `commandArguments` 命名，并在 `CommandArguments` 中新增 `required(index): string`，统一完成索引校验和类型收窄。随后 `npm run build` 与全项目类型检查通过。
+- 实现前自审发现容器判断最初计划用“是否存在 `appendChild/children`”做结构探测，叶子也满足这些成员，会误判；改为仅在应用边界查询容器时使用 `shape instanceof GroupShape`。几何操作仍未按类型分支。
+
+### 轮次 7：自动化测试失败与纠正（2026-10-23）
+
+- 首次运行应用与 CLI 测试：11 个测试文件、64 项中 63 项通过。失败项是“连续命令”测试把初始宽度 100 经 2 倍缩放后的期望误写为 400，实际正确值为 200。
+- 全项目类型检查同时发现测试误调用不存在的 `SvgDocument.findRoot`；该调用只是冗余状态断言，删除后以对象身份不变验证替代。
+- 修正的是测试期望和测试代码，而不是为了让错误断言通过而修改业务实现。修正后 11 个文件、64 项全部通过。
+- 新增测试覆盖六种创建、`in` 容器、ID/容器/类型错误、参数错误、move/scale/set/delete、嵌套 Group、失败状态不变、连续命令、无文档、未知命令、词法解析、真实流式 REPL、依赖隔离和缩放溢出原子性。
+
+### 轮次 8：手动验收与架构影响（2026-10-23）
+
+- 通过 `npm run cli` 管道实际回放课程正常序列；启动行、提示符、创建、移动、缩放、属性修改、删除和 help 输出均符合本阶段范围。
+- 在同一文档上继续执行重复 ID、负宽度、缺失图形、`scale 0`、`hexagon` 五类错误，全部输出 `error:`；随后 `set r1 fill blue` 成功，证明 REPL 未退出且原文档仍可编辑。
+- `git diff` 范围分为：domain 的缩放预检及测试、application 命令体系、cli 解析/REPL、`main.ts` 组装和文档。没有修改 `svg` 模块，也没有提前实现 tree/show/save/undo。
+- 依赖检查：domain 无外层导入；application 不导入 CLI、SVG 或 Node API；CLI 不直接导入 domain，只依赖应用的 `CommandExecutor` 与错误文本。
+
 ## 5. 一致性自查
 
-本节在每个开发阶段结束时更新；当前为 Phase 2 状态。
+本节在每个开发阶段结束时更新；当前为 Phase 3 状态。
 
-1. 模块划分：`src/domain` 已包含 `Shape`、`StyledShape`、五种叶子、`GroupShape`、`SvgDocument`、`DomainError` 和 `ShapeVisitor`；`application`、`svg`、`cli` 仍保持骨架。除 `Document.ts` 按阶段任务命名为 `SvgDocument.ts` 外，实际结构与方案一致，差异已记录。
-2. 依赖方向：对 `src/domain` 执行了逐文件导入检查，所有导入均为领域内部相对路径；没有导入 `node:*`、`application`、`svg` 或 `cli`。`domainArchitecture.test.ts` 将该约束固化为自动测试。
-3. 复杂度与分派：领域操作均通过 Shape 多态执行，没有 `switch(shape.type)`；`ShapeVisitor` 使用双重分派为后续显示/序列化预留入口。当前未新增工厂，图形名称映射留到后续创建流程。
-4. 阶段边界：没有 `BoxShape`、插件注册或插件加载代码；没有实现命令解析、undo/redo、文件 IO，也没有修改既有 CLI 入口。
+1. 模块划分：domain 保留第二阶段类层次并新增缩放预检；application 具有会话、注册表、参数包装、图形工厂、类型名访问者和每命令一类；cli 具有词法器、解析错误与 REPL。实际结构与方案一致。
+2. 依赖方向：domain 无 `node:*`、application、SVG、CLI 导入；application 可依赖 domain，无 CLI/SVG/Node API 导入；CLI 只依赖 application 接口和 Node 标准流/readline，没有直接导入 domain。`domainArchitecture.test.ts` 与 `cliArchitecture.test.ts` 自动检查。
+3. 分派集中：命令名只通过 `CommandRegistry` 映射，图形类型名只通过 `ShapeFactory` 映射；application/CLI 中没有 `switch`。几何和属性操作通过 Shape 多态执行，容器校验之外没有图形类型分支。
+4. 阶段边界：`box`、tree/show/save/read/canvas、group/ungroup/addto、front/back、undo/redo 均未实现，help 只列出当前七个真实可用命令。
+5. 错误与状态：应用边界把领域错误归一为 `ApplicationError`；CLI 捕获所有命令错误并继续循环。测试验证了非法参数、容器、ID、属性、缩放和溢出失败后的状态不变性。
 
 ## 6. 质量保证手段
 
@@ -314,3 +387,19 @@ git status --short
 | 领域导入检查 | `src/domain` 未依赖 `node:*`、`application`、`svg` 或 `cli` |
 
 本阶段只证明领域模型行为，命令行参数解析、命令历史、SVG 读写、tree/show 显示和插件仍属于未完成需求。
+
+### Phase 3 实际验证结果（2026-10-23）
+
+| 命令/验证 | 结果 |
+|---|---|
+| `npm run build` | 退出码 0 |
+| `npm test` | 11 个测试文件、64 项测试全部通过 |
+| `npx tsc -p tsconfig.json --noEmit` | 退出码 0，包含测试文件 |
+| `npm run cli` 正常序列 | 启动文案、提示符和 7 个功能交互正常 |
+| `npm run cli` 错误序列 | 5 类错误均带 `error:`，随后编辑仍成功 |
+| 依赖导入检查 | domain、application、CLI 方向符合分层规则 |
+| `git diff --cached --check` | 提交前检查新增源码、测试和文档的空白错误 |
+
+本阶段测试覆盖真实 REPL 输入流、双引号参数、注释/空行、错误后继续、六种图形、`in`、ID 与容器错误、move/scale/set/delete、Group 递归操作、参数校验、未初始化文档、未知命令、失败原子性和缩放溢出。
+
+仍未完成：tree/show、canvas、read/save、group/ungroup/addto、front/back、CommandHistory、undo/redo、IO 屏障、SVG round-trip 和 box 插件。

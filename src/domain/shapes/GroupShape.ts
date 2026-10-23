@@ -53,8 +53,16 @@ export class GroupShape extends StyledShape {
     }
   }
 
-  public override scale(factor: number): void {
+  public override assertCanScale(factor: number): void {
     Shape.assertScaleFactor(factor);
+
+    for (const child of this._children) {
+      child.assertCanScale(factor);
+    }
+  }
+
+  public override scale(factor: number): void {
+    this.assertCanScale(factor);
 
     for (const child of this._children) {
       child.scale(factor);

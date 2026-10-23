@@ -40,6 +40,8 @@ export abstract class Shape {
 
   public abstract move(dx: number, dy: number): void;
 
+  public abstract assertCanScale(factor: number): void;
+
   public abstract scale(factor: number): void;
 
   public abstract setAttribute(attribute: string, value: string): void;
@@ -116,6 +118,23 @@ export abstract class Shape {
     if (!Number.isFinite(dy)) {
       throw Shape.invalidNumber("dy", dy);
     }
+  }
+
+  protected static scaledValue(
+    attribute: string,
+    value: number,
+    factor: number
+  ): number {
+    const scaled = value * factor;
+
+    if (!Number.isFinite(scaled)) {
+      throw new DomainError(
+        "NUMERIC_OVERFLOW",
+        `numeric overflow while scaling: ${attribute}`
+      );
+    }
+
+    return scaled;
   }
 
   protected static unknownAttribute(attribute: string): DomainError {

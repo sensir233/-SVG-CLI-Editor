@@ -40,11 +40,18 @@ export class CircleShape extends StyledShape {
     this._cy += dy;
   }
 
-  public override scale(factor: number): void {
+  public override assertCanScale(factor: number): void {
     Shape.assertScaleFactor(factor);
-    this._cx *= factor;
-    this._cy *= factor;
-    this._r *= factor;
+    Shape.scaledValue("cx", this._cx, factor);
+    Shape.scaledValue("cy", this._cy, factor);
+    Shape.scaledValue("r", this._r, factor);
+  }
+
+  public override scale(factor: number): void {
+    this.assertCanScale(factor);
+    this._cx = Shape.scaledValue("cx", this._cx, factor);
+    this._cy = Shape.scaledValue("cy", this._cy, factor);
+    this._r = Shape.scaledValue("r", this._r, factor);
   }
 
   public override accept<T>(visitor: ShapeVisitor<T>): T {
