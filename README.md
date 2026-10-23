@@ -2,7 +2,7 @@
 
 高级软件课程作业。
 
-Lab1 已完成 Phase 1–3。当前可通过 `npm run cli` 使用 `init`、`create`、`delete`、`move`、`scale`、`set` 和 `help` 编辑 SVG 文档；CLI、应用命令、图形领域模型分层实现。命令历史、SVG IO 与显示类命令按课程要求留到后续阶段。
+Lab1 已完成 Phase 1–4。当前可通过 `npm run cli` 使用 `init`、`create`、`delete`、`move`、`scale`、`set`、`group`、`ungroup`、`addto`、`front`、`back` 和 `help` 编辑 SVG 文档；CLI、应用命令、图形领域模型分层实现。命令历史、SVG IO 与显示类命令按课程要求留到后续阶段。
 
 ```text
 npm install

@@ -2,7 +2,7 @@
 
 ## 1. 当前阶段与边界
 
-当前已完成 Lab1 Phase 3，本文件在前两阶段基础上记录领域模型接入应用命令和 REPL 后的实际结构。仓库现在包含可交互 REPL、独立命令类、命令注册表、图形工厂、会话服务，以及完整的基础图形领域模型；CommandHistory、IO 和显示类命令仍将在后续阶段实现。
+当前已完成 Lab1 Phase 4，本文件记录图形模型接入命令、REPL 以及组合/层级操作后的实际结构。仓库现在支持基础编辑命令与 `group/ungroup/addto/front/back`；CommandHistory、IO 和显示类命令仍将在后续阶段实现。
 
 后续阶段才做的工作：
 
@@ -48,6 +48,11 @@ src/
 │       ├── MoveShapeCommand.ts
 │       ├── ScaleShapeCommand.ts
 │       ├── SetAttributeCommand.ts
+│       ├── GroupCommand.ts
+│       ├── UngroupCommand.ts
+│       ├── AddToGroupCommand.ts
+│       ├── FrontCommand.ts
+│       ├── BackCommand.ts
 │       └── HelpCommand.ts
 ├── svg/
 │   ├── SvgDocumentReader.ts
@@ -117,7 +122,7 @@ package "src/svg" {
 }
 
 package "src/domain" {
-  [Document] as Document
+  [SvgDocument Aggregate] as Document
   [Shape Hierarchy] as Shapes
 }
 
@@ -174,6 +179,12 @@ end note
 
 父子关系由 `SvgDocument` 的私有映射集中维护，而不是让每个图形各自保存一个可被任意改写的 parent 字段。这样添加整棵子树时可以一次性完成全局 ID 和父子关系校验，删除时也能准确清理全部索引。`GroupShape` 自身仍通过公开只读快照暴露子项，并负责防止局部父子循环。
 
+Phase 4 对树结构修改增加了所有权约束：
+
+- 未加入文档的 Group 可用 `appendChild/removeChild` 组装独立子树，保持原有构建接口。
+- Group 注册到 `SvgDocument` 后由文档标记为 managed；公开 `appendChild/removeChild` 会拒绝直接修改，避免图形树与 `_shapesById/_parentsById` 脱节。
+- `SvgDocument` 使用受控的领域内部入口完成已入档子树的插入、移除和重排；Application 命令只调用 `groupShapes/ungroupShape/addShapeToGroup/bringToFront/sendToBack` 五个聚合 API。
+
 调用方只面向 `Shape`：
 
 ```text
@@ -186,7 +197,17 @@ set(id, attr, v)  -> shape.setAttribute(attr, v)
 
 各具体图形实现 `accept(visitor)`，由子类调用对应访问方法。树形显示、属性明细和 SVG 序列化使用不同访问者，以双重分派替代 `switch(tag)`。按名称创建图形的映射集中在 `ShapeFactory`，这是课程允许的“图形工厂”分派点。
 
-`GroupShape.appendChild` 在追加前同时检查直接自包含和间接循环。`SvgDocument.addShape` 在修改树之前预检目标父容器、候选子树内部重复 ID、与文档已有 ID 的冲突以及跨子树循环；失败时文档根列表和两个索引均不改变。
+`GroupShape` 的内部追加入口在修改前检查直接自包含和间接循环。`SvgDocument.addShape` 在修改树之前预检目标父容器、候选子树内部重复 ID、与文档已有 ID 的冲突以及跨子树循环；失败时文档根列表和两个索引均不改变。
+
+统一结构 API 与语义：
+
+| API | 结构语义 |
+|---|---|
+| `groupShapes(newId, members)` | 输入顺序成为新 Group 的子节点顺序；同父时插入在原首个成员位置，跨父时新 Group 追加到根末尾 |
+| `ungroupShape(groupId)` | 仅允许嵌套 Group；直接子项按原顺序替换 Group 的原位置，根级 Group 拒绝 |
+| `addShapeToGroup(groupId, shapeId)` | 原地移动同一对象和整个子树，追加为目标 Group 最后一个子项；已在末尾时无操作 |
+| `bringToFront(id)` | 只调整当前父容器内的兄弟顺序 |
+| `sendToBack(id)` | 只调整当前父容器内的兄弟顺序 |
 
 ### 2.5 Command 模式与历史
 
@@ -198,7 +219,7 @@ EditorCommand
 └── execute(context, args)
 ```
 
-Phase 3 已落地 `InitCommand`、`CreateShapeCommand`、`DeleteShapeCommand`、`MoveShapeCommand`、`ScaleShapeCommand`、`SetAttributeCommand` 和 `HelpCommand`。`CommandRegistry` 是唯一按命令名分派的入口，`ShapeFactory` 是唯一按图形类型创建实例的位置。两者都是课程允许的字符串分派集中点。
+Phase 3–4 已落地 `InitCommand`、`CreateShapeCommand`、`DeleteShapeCommand`、`MoveShapeCommand`、`ScaleShapeCommand`、`SetAttributeCommand`、`GroupCommand`、`UngroupCommand`、`AddToGroupCommand`、`FrontCommand`、`BackCommand` 和 `HelpCommand`。`CommandRegistry` 是唯一按命令名分派的入口，`ShapeFactory` 是唯一按图形类型创建实例的位置。两者都是课程允许的字符串分派集中点。
 
 调用链为：
 
@@ -253,6 +274,10 @@ Phase 3 新增 `ApplicationError` 表达无文档、未知命令、参数用法�
 
 领域为“缩放溢出”增加了无副作用的 `assertCanScale` 预检：叶子验证全部缩放结果有限，Group 先递归验证所有后代再开始修改。这样超大但有限的 factor 导致中间值溢出时，不会留下部分缩放状态。
 
+Phase 4 同时增加 `assertCanMove`：所有叶子预检移动后的全部坐标有限，Group 递归预检整棵子树后才执行移动。极大有限坐标与极大有限偏移导致 `Infinity` 时抛出 `NUMERIC_OVERFLOW`，已有子项不会先被移动。
+
+已入档 Group 的公开树修改会抛出 `INVALID_TREE_MUTATION`，要求外部通过 `SvgDocument` 的结构 API。该错误与 `INVALID_STRUCTURE_OPERATION` 一起保证 Application 不会绕过索引。
+
 ## 3. 变化点与预留策略
 
 | 可能变化 | 影响位置 | 当前策略/理由 |
@@ -266,6 +291,9 @@ Phase 3 新增 `ApplicationError` 表达无文档、未知命令、参数用法�
 | 修改历史策略或 IO 限制 | `CommandHistory`、文档命令 | 历史策略集中，不散落在各命令或 CLI |
 | 图形新增可编辑属性 | 对应具体 Shape 的白名单实现 | 属性语义由类型自身多态处理，不在全局写大分支 |
 | 后续需要持久化扩展状态 | DocumentSnapshot 与 SVG 属性 | 快照封装完整领域状态；扩展标记需同时补读回测试 |
+| 新增组合/层级命令 | `SvgDocument` 结构 API + 新 EditorCommand | 验证、索引维护和提交集中；Application 只做参数和结果编排 |
+| 图形类型增加容器变体 | `GroupShape`/Shape 契约 + 访问者 | 统一树结构操作留在 domain；插件不应直接操作文档索引 |
+| 兄弟顺序规则变化 | `SvgDocument` 的排序/插入辅助方法 | 使用真实兄弟数组，不引入额外 zIndex 状态 |
 
 暂不预留的部分：
 
@@ -337,15 +365,40 @@ Phase 3 新增 `ApplicationError` 表达无文档、未知命令、参数用法�
 - `git diff` 范围分为：domain 的缩放预检及测试、application 命令体系、cli 解析/REPL、`main.ts` 组装和文档。没有修改 `svg` 模块，也没有提前实现 tree/show/save/undo。
 - 依赖检查：domain 无外层导入；application 不导入 CLI、SVG 或 Node API；CLI 不直接导入 domain，只依赖应用的 `CommandExecutor` 与错误文本。
 
+### 轮次 9：第四阶段前置问题复现（2026-10-23）
+
+- 人工审查提出两个风险后，先新增 `treeInvariant.test.ts`，没有先改实现。测试直接调用已入档 `GroupShape.appendChild/removeChild`，并用嵌套 Group 的第一个安全、第二个溢出的移动场景验证原子性。
+- 首轮运行 3 项测试全部失败：直接增删确实成功；极大有限偏移把后一个子项变成 `Infinity`，且前一个子项已经被移动。这证明两个问题都真实存在，而非仅理论风险。
+- 结构修复采用 managed 所有权约束：未入档 Group 保留原有 append/remove 构建能力；进入文档后公开修改被拒绝，`SvgDocument` 通过受控内部入口维护两个索引。回归测试验证直接修改失败时根顺序、父关系和 ID 索引均不变。
+- 移动修复增加 `assertCanMove` 和 `movedValue`。叶子先计算全部新坐标并验证有限，嵌套 Group 先递归验证整棵树，再执行实际移动。原 3 项回归测试随后全部通过。
+
+### 轮次 10：组合与排序结构 API（2026-10-23）
+
+- 设计初稿只考虑同父节点分组，无法满足课程允许跨父容器分组的要求。最终明确策略：同父时在最早原成员位置插入新 Group；跨父时把新 Group 追加到根末尾。两组成员顺序始终按用户输入顺序。
+- 跨父分组初稿用“修改前根节点长度”作为根末尾索引；自审发现若成员中包含根节点，移除后索引会越界。改为预计算并从根长度扣除将被移除的根成员数，保持“先验证、后修改”。
+- 所有结构操作集中在 `SvgDocument`：分组、解除分组、移动归属和前后排序均预先判断重复 ID、缺失节点、祖先/后代、父索引和插入位置。Application 新增五个命令，仅解析参数并调用这些领域 API。
+- `ungroup` 保留课程特例：任何 SVG 根级 Group 都拒绝，错误文本为 `cannot ungroup top-level container: <id>`；普通嵌套 Group 在原子项位置提升直接子项。
+- `addto` 对已经直接属于目标 Group 的图形采用“移动到末尾”语义；若已在末尾则为无操作。front/back 只对真实兄弟数组做去尾/插首，不引入 zIndex。
+- 领域结构测试 16 项与应用组合测试 8 项首次运行即通过；连同前置回归测试，本轮新增 27 项验证全部通过。
+
+### 轮次 11：第四阶段全量回归与手动验收（2026-10-23）
+
+- 全量测试达到 14 个文件、92 项全部通过；`npm run build` 与包含测试文件的全项目 TypeScript 检查通过。
+- `npm run cli` 实际回放附件中的正常组合序列：group、递归 move、addto、front/back、嵌套 ungroup 均返回成功。
+- 实际回放顶层 Group 场景，`ungroup top` 正确输出 `error: cannot ungroup top-level container: top`。
+- `help` 只列出 Phase 4 真实可用命令，没有提前出现 tree/show/save/undo。
+- Composite 设计差异已明确：几何 Composite 通过 Shape 多态的 move/scale/set 统一处理；树结构 Composite 会修改全局 ID/父/兄弟索引，因此必须经过文档聚合根验证和提交，不能仅调用 Group 的局部数组方法。
+
 ## 5. 一致性自查
 
-本节在每个开发阶段结束时更新；当前为 Phase 3 状态。
+本节在每个开发阶段结束时更新；当前为 Phase 4 状态。
 
-1. 模块划分：domain 保留第二阶段类层次并新增缩放预检；application 具有会话、注册表、参数包装、图形工厂、类型名访问者和每命令一类；cli 具有词法器、解析错误与 REPL。实际结构与方案一致。
+1. 模块划分：domain 保留类层次并负责缩放/移动预检、受控树结构和全局索引；application 具有会话、注册表、参数包装、图形工厂、类型名访问者和每命令一类；cli 具有词法器、解析错误与 REPL。实际结构与方案一致。
 2. 依赖方向：domain 无 `node:*`、application、SVG、CLI 导入；application 可依赖 domain，无 CLI/SVG/Node API 导入；CLI 只依赖 application 接口和 Node 标准流/readline，没有直接导入 domain。`domainArchitecture.test.ts` 与 `cliArchitecture.test.ts` 自动检查。
 3. 分派集中：命令名只通过 `CommandRegistry` 映射，图形类型名只通过 `ShapeFactory` 映射；application/CLI 中没有 `switch`。几何和属性操作通过 Shape 多态执行，容器校验之外没有图形类型分支。
-4. 阶段边界：`box`、tree/show/save/read/canvas、group/ungroup/addto、front/back、undo/redo 均未实现，help 只列出当前七个真实可用命令。
-5. 错误与状态：应用边界把领域错误归一为 `ApplicationError`；CLI 捕获所有命令错误并继续循环。测试验证了非法参数、容器、ID、属性、缩放和溢出失败后的状态不变性。
+4. 结构修改集中：Application 源码不调用 Group 的 append/remove 内部入口；五个结构命令调用 `SvgDocument` 聚合 API。已入档 Group 的直接公开修改由回归测试验证为拒绝。
+5. 阶段边界：`box`、tree/show/save/read/canvas、undo/redo 均未实现，help 只列出当前十二个真实可用命令。
+6. 错误与状态：应用边界把领域错误归一为 `ApplicationError`；CLI 捕获所有命令错误并继续循环。测试验证了非法参数、容器、ID、属性、缩放、移动和结构操作失败后的状态不变性。
 
 ## 6. 质量保证手段
 
@@ -403,3 +456,20 @@ git status --short
 本阶段测试覆盖真实 REPL 输入流、双引号参数、注释/空行、错误后继续、六种图形、`in`、ID 与容器错误、move/scale/set/delete、Group 递归操作、参数校验、未初始化文档、未知命令、失败原子性和缩放溢出。
 
 仍未完成：tree/show、canvas、read/save、group/ungroup/addto、front/back、CommandHistory、undo/redo、IO 屏障、SVG round-trip 和 box 插件。
+
+### Phase 4 实际验证结果（2026-10-23）
+
+| 命令/验证 | 结果 |
+|---|---|
+| 前置问题回归测试首轮 | 3 项全部失败，真实复现树索引绕过与 Group 部分移动 |
+| 修复后定向测试 | 树不变量、结构操作、应用组合命令共 27 项通过 |
+| `npm run build` | 退出码 0 |
+| `npm test` | 14 个测试文件、92 项全部通过 |
+| `npx tsc -p tsconfig.json --noEmit` | 退出码 0，包含测试文件 |
+| CLI 正常结构序列 | group/addto/front/back/ungroup 实际成功 |
+| CLI 根级 ungroup | 按规定拒绝顶层 Group |
+| `git diff --cached --check` | 提交前检查空白错误 |
+
+新增结构测试覆盖同父/跨父分组、容器嵌套、输入顺序、组内 move/scale、失败原子性、锚定位置、嵌套 ungroup、空 Group、addto 跨容器和同容器、循环拒绝、根级拒绝、front/back 根级与嵌套排序、重复边界操作，以及真实 CLI 连续流程。
+
+仍未完成：tree/show、canvas、read/save、CommandHistory、undo/redo、IO 屏障、SVG round-trip、插件和 box。

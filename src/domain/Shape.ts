@@ -40,6 +40,8 @@ export abstract class Shape {
 
   public abstract move(dx: number, dy: number): void;
 
+  public abstract assertCanMove(dx: number, dy: number): void;
+
   public abstract assertCanScale(factor: number): void;
 
   public abstract scale(factor: number): void;
@@ -135,6 +137,23 @@ export abstract class Shape {
     }
 
     return scaled;
+  }
+
+  protected static movedValue(
+    attribute: string,
+    value: number,
+    offset: number
+  ): number {
+    const moved = value + offset;
+
+    if (!Number.isFinite(moved)) {
+      throw new DomainError(
+        "NUMERIC_OVERFLOW",
+        `numeric overflow while moving: ${attribute}`
+      );
+    }
+
+    return moved;
   }
 
   protected static unknownAttribute(attribute: string): DomainError {

@@ -35,9 +35,15 @@ export class CircleShape extends StyledShape {
   }
 
   public override move(dx: number, dy: number): void {
+    this.assertCanMove(dx, dy);
+    this._cx = Shape.movedValue("cx", this._cx, dx);
+    this._cy = Shape.movedValue("cy", this._cy, dy);
+  }
+
+  public override assertCanMove(dx: number, dy: number): void {
     Shape.assertOffset(dx, dy);
-    this._cx += dx;
-    this._cy += dy;
+    Shape.movedValue("cx", this._cx, dx);
+    Shape.movedValue("cy", this._cy, dy);
   }
 
   public override assertCanScale(factor: number): void {

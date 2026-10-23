@@ -1,11 +1,16 @@
 import { CommandRegistry } from "../../src/application/CommandRegistry.js";
+import { AddToGroupCommand } from "../../src/application/commands/AddToGroupCommand.js";
+import { BackCommand } from "../../src/application/commands/BackCommand.js";
 import { CreateShapeCommand } from "../../src/application/commands/CreateShapeCommand.js";
 import { DeleteShapeCommand } from "../../src/application/commands/DeleteShapeCommand.js";
+import { FrontCommand } from "../../src/application/commands/FrontCommand.js";
+import { GroupCommand } from "../../src/application/commands/GroupCommand.js";
 import { HelpCommand } from "../../src/application/commands/HelpCommand.js";
 import { InitCommand } from "../../src/application/commands/InitCommand.js";
 import { MoveShapeCommand } from "../../src/application/commands/MoveShapeCommand.js";
 import { ScaleShapeCommand } from "../../src/application/commands/ScaleShapeCommand.js";
 import { SetAttributeCommand } from "../../src/application/commands/SetAttributeCommand.js";
+import { UngroupCommand } from "../../src/application/commands/UngroupCommand.js";
 import { EditorSession } from "../../src/application/EditorSession.js";
 import { ShapeFactory } from "../../src/application/ShapeFactory.js";
 import type { SvgDocument } from "../../src/domain/SvgDocument.js";
@@ -23,6 +28,11 @@ export class TestEditor {
     registry.register(new MoveShapeCommand());
     registry.register(new ScaleShapeCommand());
     registry.register(new SetAttributeCommand());
+    registry.register(new GroupCommand());
+    registry.register(new UngroupCommand());
+    registry.register(new AddToGroupCommand());
+    registry.register(new FrontCommand());
+    registry.register(new BackCommand());
     registry.register(new HelpCommand(registry));
     this.session = new EditorSession(registry);
   }

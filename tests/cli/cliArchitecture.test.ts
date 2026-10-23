@@ -20,13 +20,18 @@ const applicationFiles = [
   "src/application/EditorSession.ts",
   "src/application/ShapeFactory.ts",
   "src/application/ShapeTypeNameVisitor.ts",
+  "src/application/commands/AddToGroupCommand.ts",
+  "src/application/commands/BackCommand.ts",
   "src/application/commands/CreateShapeCommand.ts",
   "src/application/commands/DeleteShapeCommand.ts",
+  "src/application/commands/FrontCommand.ts",
+  "src/application/commands/GroupCommand.ts",
   "src/application/commands/HelpCommand.ts",
   "src/application/commands/InitCommand.ts",
   "src/application/commands/MoveShapeCommand.ts",
   "src/application/commands/ScaleShapeCommand.ts",
-  "src/application/commands/SetAttributeCommand.ts"
+  "src/application/commands/SetAttributeCommand.ts",
+  "src/application/commands/UngroupCommand.ts"
 ];
 
 describe("CLI architecture", () => {
@@ -52,6 +57,15 @@ describe("CLI architecture", () => {
     for (const relativePath of [...cliFiles, ...applicationFiles]) {
       const source = readFileSync(join(projectRoot, relativePath), "utf8");
       expect(source, relativePath).not.toMatch(/switch\s*\(/);
+    }
+  });
+
+  it("routes application structure changes through SvgDocument APIs", () => {
+    for (const relativePath of applicationFiles) {
+      const source = readFileSync(join(projectRoot, relativePath), "utf8");
+      expect(source, relativePath).not.toMatch(
+        /\.(?:appendChild|removeChild|appendChildForDocument|insertChildForDocument|removeChildForDocument|markDocumentManaged)\s*\(/
+      );
     }
   });
 });

@@ -8,7 +8,9 @@ export type DomainErrorCode =
   | "INVALID_PARENT"
   | "CYCLE_DETECTED"
   | "INVALID_CANVAS_SIZE"
-  | "NUMERIC_OVERFLOW";
+  | "NUMERIC_OVERFLOW"
+  | "INVALID_TREE_MUTATION"
+  | "INVALID_STRUCTURE_OPERATION";
 
 export class DomainError extends Error {
   public readonly code: DomainErrorCode;

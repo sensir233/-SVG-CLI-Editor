@@ -42,11 +42,19 @@ export class LineShape extends StyledShape {
   }
 
   public override move(dx: number, dy: number): void {
+    this.assertCanMove(dx, dy);
+    this._x1 = Shape.movedValue("x1", this._x1, dx);
+    this._y1 = Shape.movedValue("y1", this._y1, dy);
+    this._x2 = Shape.movedValue("x2", this._x2, dx);
+    this._y2 = Shape.movedValue("y2", this._y2, dy);
+  }
+
+  public override assertCanMove(dx: number, dy: number): void {
     Shape.assertOffset(dx, dy);
-    this._x1 += dx;
-    this._y1 += dy;
-    this._x2 += dx;
-    this._y2 += dy;
+    Shape.movedValue("x1", this._x1, dx);
+    Shape.movedValue("y1", this._y1, dy);
+    Shape.movedValue("x2", this._x2, dx);
+    Shape.movedValue("y2", this._y2, dy);
   }
 
   public override assertCanScale(factor: number): void {

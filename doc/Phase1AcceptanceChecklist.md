@@ -44,11 +44,11 @@
 - [x] `delete` 删除叶子；删除容器时一并删除全部子孙。
 - [x] `move` 平移叶子；平移容器时所有子孙保持相对关系。
 - [x] `scale` 同乘全部几何位置和尺寸；容器操作递归到所有子孙。
-- [ ] `group <newGid> <id...>` 保持被收编图形的相对顺序，并作为单个 undo 单元。
-- [ ] `ungroup <gid>` 把子项按原顺序提升到父级并占据原位置。
-- [ ] 根级容器拒绝 ungroup，复合图形（未来插件）拒绝 ungroup。
-- [ ] `addto <gid> <id>` 把已有图形移到容器末尾，并拒绝自包含/循环层级。
-- [ ] `front`/`back` 只调整同一父容器中的顺序。
+- [x] `group <newGid> <id...>` 保持被收编图形的相对顺序；undo 单元留待第五阶段。
+- [x] `ungroup <gid>` 把子项按原顺序提升到父级并占据原位置。
+- [x] 根级容器拒绝 ungroup；复合图形插件规则留待插件阶段。
+- [x] `addto <gid> <id>` 把已有图形移到容器末尾，并拒绝自包含/循环层级。
+- [x] `front`/`back` 只调整同一父容器中的顺序。
 - [ ] 容器和叶子的属性修改、删除、显示走统一多态接口，不依赖外部类型判断。
 
 ## 5. Command、撤销与重做
@@ -133,3 +133,21 @@
 - [x] `npm run build`、`npm test`、全项目类型检查和人工正常/错误序列通过。
 
 仍未完成：tree/show、canvas、read/save、group/ungroup/addto、front/back、CommandHistory、undo/redo、IO 屏障、SVG round-trip、插件和 `box`。
+
+## 11. Phase 4 组合与层级验证证据
+
+本节只勾选第四阶段已经由领域/应用测试和真实 CLI 验证的结果。
+
+- [x] 已入档 Group 的公开 append/remove 被拒绝，不能绕过 `SvgDocument` 索引。
+- [x] `SvgDocument` 集中提供 group、ungroup、addto、front、back 结构入口。
+- [x] 同父分组按输入顺序建子节点，并插入最早原成员位置。
+- [x] 跨父分组按输入顺序建子节点，新 Group 追加到根末尾。
+- [x] 容器可作为分组目标，分组后 move/scale 递归作用于所有后代。
+- [x] 重复成员、缺失目标、新 ID 冲突、祖先与后代同时分组均原子拒绝。
+- [x] 嵌套 Group ungroup 后子项按原顺序占据原位置，空 Group 也可解散。
+- [x] SVG 根级 Group 拒绝 ungroup，错误文本符合课程约定。
+- [x] addto 支持跨容器、同容器移至末尾和整棵子树移动，拒绝自包含/循环。
+- [x] front/back 支持根级与嵌套排序，不改变父关系或几何；重复边界操作安全。
+- [x] 极大有限坐标/偏移导致移动溢出时，Group 全部后代均不改变。
+- [x] 连续 create → group → move → addto → front → ungroup → delete 经结构断言通过。
+- [x] CLI help 只列出当前真实实现命令，未提前显示 tree/show/undo。

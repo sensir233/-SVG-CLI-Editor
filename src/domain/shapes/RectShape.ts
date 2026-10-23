@@ -42,9 +42,15 @@ export class RectShape extends StyledShape {
   }
 
   public override move(dx: number, dy: number): void {
+    this.assertCanMove(dx, dy);
+    this._x = Shape.movedValue("x", this._x, dx);
+    this._y = Shape.movedValue("y", this._y, dy);
+  }
+
+  public override assertCanMove(dx: number, dy: number): void {
     Shape.assertOffset(dx, dy);
-    this._x += dx;
-    this._y += dy;
+    Shape.movedValue("x", this._x, dx);
+    Shape.movedValue("y", this._y, dy);
   }
 
   public override assertCanScale(factor: number): void {
