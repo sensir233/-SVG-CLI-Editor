@@ -2,7 +2,7 @@
 
 高级软件课程作业。
 
-Lab1 Phase 1 的 TypeScript 工程骨架。功能实现按课程要求分阶段推进，当前阶段只包含项目结构、架构文档和工程入口。
+Lab1 已完成 Phase 1 工程架构与 Phase 2 SVG 图形领域模型。当前包含五种叶子图形、`GroupShape` Composite 容器、`SvgDocument`、领域校验和自动化测试；CLI、命令历史与 SVG IO 按课程要求留到后续阶段。
 
 ```text
 npm install
