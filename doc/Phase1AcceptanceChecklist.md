@@ -138,7 +138,7 @@
 
 本节只勾选第四阶段已经由领域/应用测试和真实 CLI 验证的结果。
 
-- [x] 已入档 Group 的公开 append/remove 被拒绝，不能绕过 `SvgDocument` 索引。
+- [x] 已入档 Group 的公开 append/remove 被拒绝，内部入口还要求文档私有 capability token，不能绕过 `SvgDocument` 索引。
 - [x] `SvgDocument` 集中提供 group、ungroup、addto、front、back 结构入口。
 - [x] 同父分组按输入顺序建子节点，并插入最早原成员位置。
 - [x] 跨父分组按输入顺序建子节点，新 Group 追加到根末尾。

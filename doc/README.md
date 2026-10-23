@@ -183,7 +183,7 @@ Phase 4 对树结构修改增加了所有权约束：
 
 - 未加入文档的 Group 可用 `appendChild/removeChild` 组装独立子树，保持原有构建接口。
 - Group 注册到 `SvgDocument` 后由文档标记为 managed；公开 `appendChild/removeChild` 会拒绝直接修改，避免图形树与 `_shapesById/_parentsById` 脱节。
-- `SvgDocument` 使用受控的领域内部入口完成已入档子树的插入、移除和重排；Application 命令只调用 `groupShapes/ungroupShape/addShapeToGroup/bringToFront/sendToBack` 五个聚合 API。
+- `SvgDocument` 使用不可从外部获得的私有 capability token 调用受控领域内部入口，完成已入档子树的插入、移除和重排；Application 命令只调用 `groupShapes/ungroupShape/addShapeToGroup/bringToFront/sendToBack` 五个聚合 API。外部即使知道内部方法名，没有 token 也不能修改 managed Group。
 
 调用方只面向 `Shape`：
 
@@ -388,6 +388,13 @@ Phase 4 同时增加 `assertCanMove`：所有叶子预检移动后的全部坐�
 - 实际回放顶层 Group 场景，`ungroup top` 正确输出 `error: cannot ungroup top-level container: top`。
 - `help` 只列出 Phase 4 真实可用命令，没有提前出现 tree/show/save/undo。
 - Composite 设计差异已明确：几何 Composite 通过 Shape 多态的 move/scale/set 统一处理；树结构 Composite 会修改全局 ID/父/兄弟索引，因此必须经过文档聚合根验证和提交，不能仅调用 Group 的局部数组方法。
+
+### 轮次 12：入档结构入口加固（2026-10-23）
+
+- 第一版 managed 修复已经阻止常规 `appendChild/removeChild`，但自审发现内部方法仍是普通 public 方法，外部可以尝试直接调用而绕过托管检查。
+- 在不改变公开 Group 构建接口的前提下，`GroupShape` 改为使用 JavaScript 私有字段保存文档 capability token；`appendChildForDocument/insertChildForDocument/removeChildForDocument` 必须携带完全相同的 token，绑定和释放也通过 token 校验。
+- `SvgDocument` 自己持有不可从外部读取的 token，并在子树注册、分组、移动、解除分组和删除时统一传递。Architecture 测试继续确保 Application/CLI 不调用任何 Group 内部结构方法。
+- 回归测试新增“伪造空 token 仍被拒绝”。能力令牌加固后全量 92 项测试仍全部通过。
 
 ## 5. 一致性自查
 

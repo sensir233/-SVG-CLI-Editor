@@ -14,6 +14,9 @@ describe("document-owned shape tree invariants", () => {
     expect(() => group.appendChild(rect)).toThrow(
       "cannot modify shape structure outside SvgDocument: group"
     );
+    expect(() => group.appendChildForDocument(rect, {})).toThrow(
+      "cannot modify shape structure outside SvgDocument: group"
+    );
     expect(document.rootChildren.map((shape) => shape.id)).toEqual([
       "group",
       "rect"

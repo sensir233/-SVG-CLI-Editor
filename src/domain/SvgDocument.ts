@@ -3,6 +3,7 @@ import { GroupShape } from "./shapes/GroupShape.js";
 import { Shape } from "./Shape.js";
 
 export class SvgDocument {
+  #structureToken: object = {};
   private _width: number;
   private _height: number;
   private readonly _rootChildren: Shape[] = [];
@@ -88,10 +89,12 @@ export class SvgDocument {
       subtreeIds.add(node.id);
     }
 
+    this.bindDocumentSubtrees(shape);
+
     if (parent === null) {
       this._rootChildren.push(shape);
     } else {
-      parent.appendChildForDocument(shape);
+      parent.appendChildForDocument(shape, this.#structureToken);
     }
 
     this.registerSubtree(shape, parent);
@@ -115,7 +118,10 @@ export class SvgDocument {
 
       this._rootChildren.splice(rootIndex, 1);
     } else if (parent !== undefined) {
-      const removed = parent.removeChildForDocument(id);
+      const removed = parent.removeChildForDocument(
+        id,
+        this.#structureToken
+      );
 
       if (removed !== shape) {
         throw new DomainError(
@@ -216,13 +222,14 @@ export class SvgDocument {
 
     this.assertInsertionTarget(insertionParent, insertionIndex);
     const group = new GroupShape(newGroupId);
+    group.bindDocumentToken(this.#structureToken);
 
     for (const member of members) {
       this.detachForStructureChange(member);
     }
 
     for (const member of members) {
-      group.appendChildForDocument(member);
+      group.appendChildForDocument(member, this.#structureToken);
     }
 
     this.insertForStructureChange(group, insertionParent, insertionIndex);
@@ -253,7 +260,10 @@ export class SvgDocument {
       }
     }
 
-    const removed = parent.removeChildForDocument(group.id);
+    const removed = parent.removeChildForDocument(
+      group.id,
+      this.#structureToken
+    );
 
     if (removed !== group) {
       throw new DomainError(
@@ -263,7 +273,7 @@ export class SvgDocument {
     }
 
     for (const child of children) {
-      group.removeChildForDocument(child.id);
+      group.removeChildForDocument(child.id, this.#structureToken);
     }
 
     for (let index = 0; index < children.length; index += 1) {
@@ -277,7 +287,7 @@ export class SvgDocument {
 
     this._parentsById.delete(group.id);
     this._shapesById.delete(group.id);
-    group.markDocumentManaged(false);
+    group.releaseDocumentToken(this.#structureToken);
     return group;
   }
 
@@ -301,7 +311,7 @@ export class SvgDocument {
     }
 
     this.detachForStructureChange(shape);
-    group.appendChildForDocument(shape);
+    group.appendChildForDocument(shape, this.#structureToken);
     this._parentsById.set(shape.id, group);
     return shape;
   }
@@ -396,7 +406,10 @@ export class SvgDocument {
       return;
     }
 
-    const removed = parent.removeChildForDocument(shape.id);
+    const removed = parent.removeChildForDocument(
+      shape.id,
+      this.#structureToken
+    );
 
     if (removed !== shape) {
       throw new DomainError(
@@ -416,7 +429,7 @@ export class SvgDocument {
     if (parent === null) {
       this._rootChildren.splice(index, 0, shape);
     } else {
-      parent.insertChildForDocument(shape, index);
+      parent.insertChildForDocument(shape, index, this.#structureToken);
     }
   }
 
@@ -471,7 +484,7 @@ export class SvgDocument {
       this._parentsById.set(entry.shape.id, entry.parent);
 
       if (entry.shape instanceof GroupShape) {
-        entry.shape.markDocumentManaged(true);
+        entry.shape.bindDocumentToken(this.#structureToken);
 
         for (const child of entry.shape.children) {
           pending.push({ shape: child, parent: entry.shape });
@@ -486,7 +499,15 @@ export class SvgDocument {
       this._shapesById.delete(shape.id);
 
       if (shape instanceof GroupShape) {
-        shape.markDocumentManaged(false);
+        shape.releaseDocumentToken(this.#structureToken);
+      }
+    }
+  }
+
+  private bindDocumentSubtrees(root: Shape): void {
+    for (const shape of this.collectSubtree(root)) {
+      if (shape instanceof GroupShape) {
+        shape.bindDocumentToken(this.#structureToken);
       }
     }
   }

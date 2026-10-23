@@ -64,7 +64,7 @@ describe("CLI architecture", () => {
     for (const relativePath of applicationFiles) {
       const source = readFileSync(join(projectRoot, relativePath), "utf8");
       expect(source, relativePath).not.toMatch(
-        /\.(?:appendChild|removeChild|appendChildForDocument|insertChildForDocument|removeChildForDocument|markDocumentManaged)\s*\(/
+        /\.(?:appendChild|removeChild|appendChildForDocument|insertChildForDocument|removeChildForDocument|bindDocumentToken|releaseDocumentToken)\s*\(/
       );
     }
   });

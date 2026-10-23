@@ -5,7 +5,8 @@ import { StyledShape } from "./StyledShape.js";
 
 export class GroupShape extends StyledShape {
   private readonly _children: Shape[] = [];
-  private _managedByDocument = false;
+  #managedByDocument = false;
+  #structureToken: object | null = null;
 
   public constructor(
     id: string,
@@ -22,28 +23,45 @@ export class GroupShape extends StyledShape {
 
   public override appendChild(shape: Shape): void {
     this.assertStructureEditable();
-    this.appendChildForDocument(shape);
+    this.attachChild(shape);
   }
 
   public override removeChild(id: string): Shape | undefined {
     this.assertStructureEditable();
-    return this.removeChildForDocument(id);
+    return this.detachChild(id);
   }
 
-  /** Domain-internal ownership flag managed by SvgDocument. */
-  public markDocumentManaged(managed: boolean): void {
-    this._managedByDocument = managed;
+  public bindDocumentToken(token: object): void {
+    if (this.#structureToken !== null && this.#structureToken !== token) {
+      throw new DomainError(
+        "INVALID_TREE_MUTATION",
+        `group already belongs to another SvgDocument: ${this.id}`
+      );
+    }
+
+    this.#structureToken = token;
+    this.#managedByDocument = true;
+  }
+
+  public releaseDocumentToken(token: object): void {
+    this.assertDocumentToken(token);
+    this.#structureToken = null;
+    this.#managedByDocument = false;
   }
 
   /** Domain-internal entry used only by SvgDocument after global validation. */
-  public appendChildForDocument(shape: Shape): void {
-    this.assertCanAttach(shape);
-    this._children.push(shape);
+  public appendChildForDocument(shape: Shape, token: object): void {
+    this.assertDocumentToken(token);
+    this.attachChild(shape);
   }
 
   /** Domain-internal entry used only by SvgDocument after global validation. */
-  public insertChildForDocument(shape: Shape, index: number): void {
-    this.assertCanAttach(shape);
+  public insertChildForDocument(
+    shape: Shape,
+    index: number,
+    token: object
+  ): void {
+    this.assertDocumentToken(token);
 
     if (!Number.isInteger(index) || index < 0 || index > this._children.length) {
       throw new DomainError(
@@ -52,11 +70,20 @@ export class GroupShape extends StyledShape {
       );
     }
 
+    this.assertCanAttach(shape);
     this._children.splice(index, 0, shape);
   }
 
   /** Domain-internal entry used only by SvgDocument after global validation. */
-  public removeChildForDocument(id: string): Shape | undefined {
+  public removeChildForDocument(
+    id: string,
+    token: object
+  ): Shape | undefined {
+    this.assertDocumentToken(token);
+    return this.detachChild(id);
+  }
+
+  private detachChild(id: string): Shape | undefined {
     const index = this._children.findIndex((child) => child.id === id);
 
     if (index === -1) {
@@ -108,12 +135,26 @@ export class GroupShape extends StyledShape {
   }
 
   private assertStructureEditable(): void {
-    if (this._managedByDocument) {
+    if (this.#managedByDocument) {
       throw new DomainError(
         "INVALID_TREE_MUTATION",
         `cannot modify shape structure outside SvgDocument: ${this.id}`
       );
     }
+  }
+
+  private assertDocumentToken(token: object): void {
+    if (this.#structureToken !== token) {
+      throw new DomainError(
+        "INVALID_TREE_MUTATION",
+        `cannot modify shape structure outside SvgDocument: ${this.id}`
+      );
+    }
+  }
+
+  private attachChild(shape: Shape): void {
+    this.assertCanAttach(shape);
+    this._children.push(shape);
   }
 
   private assertCanAttach(shape: Shape): void {
