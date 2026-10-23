@@ -8,6 +8,7 @@ export class ScaleShapeCommand implements EditorCommand {
   public readonly name = "scale";
   public readonly usage = "scale <id> <factor>";
   public readonly description = "Scale a shape or group from the origin.";
+  public readonly category = "edit";
 
   public execute(
     context: CommandContext,

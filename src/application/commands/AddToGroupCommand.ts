@@ -8,6 +8,7 @@ export class AddToGroupCommand implements EditorCommand {
   public readonly name = "addto";
   public readonly usage = "addto <gid> <id>";
   public readonly description = "Move an existing shape to a group's end.";
+  public readonly category = "edit";
 
   public execute(
     context: CommandContext,

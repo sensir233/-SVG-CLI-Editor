@@ -259,6 +259,7 @@ describe("continuous composite workflow", () => {
     expect(help).toContain("front <id>");
     expect(help).toContain("back <id>");
     expect(help).not.toContain("tree [id]");
-    expect(help).not.toContain("undo");
+    expect(help).toContain("undo");
+    expect(help).toContain("redo");
   });
 });

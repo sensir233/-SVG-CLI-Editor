@@ -9,10 +9,13 @@ import { GroupCommand } from "./application/commands/GroupCommand.js";
 import { HelpCommand } from "./application/commands/HelpCommand.js";
 import { InitCommand } from "./application/commands/InitCommand.js";
 import { MoveShapeCommand } from "./application/commands/MoveShapeCommand.js";
+import { RedoCommand } from "./application/commands/RedoCommand.js";
 import { ScaleShapeCommand } from "./application/commands/ScaleShapeCommand.js";
 import { SetAttributeCommand } from "./application/commands/SetAttributeCommand.js";
 import { UngroupCommand } from "./application/commands/UngroupCommand.js";
+import { UndoCommand } from "./application/commands/UndoCommand.js";
 import { EditorSession } from "./application/EditorSession.js";
+import { DocumentSnapshotter } from "./application/history/DocumentSnapshotter.js";
 import { ShapeFactory } from "./application/ShapeFactory.js";
 
 const shapeFactory = new ShapeFactory();
@@ -29,9 +32,14 @@ registry.register(new UngroupCommand());
 registry.register(new AddToGroupCommand());
 registry.register(new FrontCommand());
 registry.register(new BackCommand());
+registry.register(new UndoCommand());
+registry.register(new RedoCommand());
 registry.register(new HelpCommand(registry));
 
-const session = new EditorSession(registry);
+const session = new EditorSession(
+  registry,
+  new DocumentSnapshotter(shapeFactory)
+);
 const cli = new CliApplication(session, process.stdin, process.stdout);
 
 await cli.run();

@@ -95,4 +95,29 @@ describe("CliApplication", () => {
     );
     expect(cli.executeLine("")).toBeUndefined();
   });
+
+  it("executes undo and redo through the real REPL flow", async () => {
+    const editor = new TestEditor();
+    const script = [
+      "init 800 600",
+      "create rect r1 10 20 30 40 red",
+      "move r1 5 6",
+      "undo",
+      "redo",
+      "undo",
+      "undo"
+    ].join("\n");
+    const input = Readable.from([`${script}\n`]);
+    const output = new PassThrough();
+    let text = "";
+    output.on("data", (chunk: Buffer) => {
+      text += chunk.toString();
+    });
+
+    await new CliApplication(editor.session, input, output).run();
+
+    expect(text.match(/undo complete/g)).toHaveLength(3);
+    expect(text.match(/redo complete/g)).toHaveLength(1);
+    expect(editor.document.shapeCount).toBe(0);
+  });
 });

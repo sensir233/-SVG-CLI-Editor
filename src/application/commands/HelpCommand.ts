@@ -8,6 +8,7 @@ export class HelpCommand implements EditorCommand {
   public readonly name = "help";
   public readonly usage = "help";
   public readonly description = "Show the commands implemented in this phase.";
+  public readonly category = "readOnly";
 
   public constructor(private readonly registry: CommandRegistry) {}
 

@@ -8,6 +8,7 @@ export class SetAttributeCommand implements EditorCommand {
   public readonly name = "set";
   public readonly usage = "set <id> <attribute> <value>";
   public readonly description = "Set an allowed shape attribute.";
+  public readonly category = "edit";
 
   public execute(
     context: CommandContext,

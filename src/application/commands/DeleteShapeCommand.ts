@@ -8,6 +8,7 @@ export class DeleteShapeCommand implements EditorCommand {
   public readonly name = "delete";
   public readonly usage = "delete <id>";
   public readonly description = "Delete a shape and all of its children.";
+  public readonly category = "edit";
 
   public execute(
     context: CommandContext,

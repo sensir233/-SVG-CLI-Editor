@@ -3,7 +3,10 @@ export type ApplicationErrorCode =
   | "UNKNOWN_COMMAND"
   | "INVALID_ARGUMENT"
   | "UNKNOWN_SHAPE_TYPE"
-  | "DOMAIN_ERROR";
+  | "DOMAIN_ERROR"
+  | "HISTORY_UNAVAILABLE"
+  | "IO_BARRIER"
+  | "INVALID_SNAPSHOT";
 
 export class ApplicationError extends Error {
   public readonly code: ApplicationErrorCode;

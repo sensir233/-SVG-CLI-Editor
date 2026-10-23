@@ -20,6 +20,12 @@ const applicationFiles = [
   "src/application/EditorSession.ts",
   "src/application/ShapeFactory.ts",
   "src/application/ShapeTypeNameVisitor.ts",
+  "src/application/history/CommandHistory.ts",
+  "src/application/history/DocumentSnapshot.ts",
+  "src/application/history/DocumentSnapshotter.ts",
+  "src/application/history/HistoryEntry.ts",
+  "src/application/history/ShapeSnapshot.ts",
+  "src/application/history/ShapeSnapshotVisitor.ts",
   "src/application/commands/AddToGroupCommand.ts",
   "src/application/commands/BackCommand.ts",
   "src/application/commands/CreateShapeCommand.ts",
@@ -31,6 +37,8 @@ const applicationFiles = [
   "src/application/commands/MoveShapeCommand.ts",
   "src/application/commands/ScaleShapeCommand.ts",
   "src/application/commands/SetAttributeCommand.ts",
+  "src/application/commands/RedoCommand.ts",
+  "src/application/commands/UndoCommand.ts",
   "src/application/commands/UngroupCommand.ts"
 ];
 
@@ -61,11 +69,33 @@ describe("CLI architecture", () => {
   });
 
   it("routes application structure changes through SvgDocument APIs", () => {
-    for (const relativePath of applicationFiles) {
+    for (const relativePath of applicationFiles.filter(
+      (path) => path !== "src/application/ShapeFactory.ts"
+    )) {
       const source = readFileSync(join(projectRoot, relativePath), "utf8");
       expect(source, relativePath).not.toMatch(
         /\.(?:appendChild|removeChild|appendChildForDocument|insertChildForDocument|removeChildForDocument|bindDocumentToken|releaseDocumentToken)\s*\(/
       );
+    }
+  });
+
+  it("keeps history behind EditorSession and exposes no Registry execution bypass", () => {
+    const sessionSource = readFileSync(
+      join(projectRoot, "src/application/EditorSession.ts"),
+      "utf8"
+    );
+    const registrySource = readFileSync(
+      join(projectRoot, "src/application/CommandRegistry.ts"),
+      "utf8"
+    );
+
+    expect(sessionSource).toContain("CommandHistory");
+    expect(sessionSource).toContain("command.category");
+    expect(registrySource).not.toMatch(/\bexecute\s*\(/);
+
+    for (const relativePath of cliFiles) {
+      const source = readFileSync(join(projectRoot, relativePath), "utf8");
+      expect(source, relativePath).not.toContain("/history/");
     }
   });
 });

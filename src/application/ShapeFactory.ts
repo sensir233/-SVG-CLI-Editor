@@ -7,11 +7,17 @@ import { RectShape } from "../domain/shapes/RectShape.js";
 import { TextShape } from "../domain/shapes/TextShape.js";
 import { ApplicationError } from "./ApplicationError.js";
 import { CommandArguments } from "./CommandArguments.js";
+import type {
+  ShapeSnapshot,
+  ShapeSnapshotKind
+} from "./history/ShapeSnapshot.js";
 
 type ShapeCreator = (id: string, parameters: readonly string[]) => Shape;
+type ShapeRestorer = (snapshot: ShapeSnapshot) => Shape;
 
 export class ShapeFactory {
   private readonly creators = new Map<string, ShapeCreator>();
+  private readonly restorers = new Map<ShapeSnapshotKind, ShapeRestorer>();
 
   public constructor() {
     this.creators.set("rect", (id, parameters) => {
@@ -100,6 +106,108 @@ export class ShapeFactory {
       arguments_.requireExactCount(0);
       return new GroupShape(id);
     });
+
+    this.restorers.set("rect", (snapshot) => {
+      if (snapshot.kind !== "rect") {
+        throw this.invalidSnapshot(snapshot.kind);
+      }
+
+      return new RectShape(
+        snapshot.id,
+        snapshot.x,
+        snapshot.y,
+        snapshot.width,
+        snapshot.height,
+        snapshot.fill,
+        snapshot.stroke,
+        snapshot.strokeWidth
+      );
+    });
+
+    this.restorers.set("circle", (snapshot) => {
+      if (snapshot.kind !== "circle") {
+        throw this.invalidSnapshot(snapshot.kind);
+      }
+
+      return new CircleShape(
+        snapshot.id,
+        snapshot.cx,
+        snapshot.cy,
+        snapshot.r,
+        snapshot.fill,
+        snapshot.stroke,
+        snapshot.strokeWidth
+      );
+    });
+
+    this.restorers.set("ellipse", (snapshot) => {
+      if (snapshot.kind !== "ellipse") {
+        throw this.invalidSnapshot(snapshot.kind);
+      }
+
+      return new EllipseShape(
+        snapshot.id,
+        snapshot.cx,
+        snapshot.cy,
+        snapshot.rx,
+        snapshot.ry,
+        snapshot.fill,
+        snapshot.stroke,
+        snapshot.strokeWidth
+      );
+    });
+
+    this.restorers.set("line", (snapshot) => {
+      if (snapshot.kind !== "line") {
+        throw this.invalidSnapshot(snapshot.kind);
+      }
+
+      return new LineShape(
+        snapshot.id,
+        snapshot.x1,
+        snapshot.y1,
+        snapshot.x2,
+        snapshot.y2,
+        snapshot.fill,
+        snapshot.stroke,
+        snapshot.strokeWidth
+      );
+    });
+
+    this.restorers.set("text", (snapshot) => {
+      if (snapshot.kind !== "text") {
+        throw this.invalidSnapshot(snapshot.kind);
+      }
+
+      return new TextShape(
+        snapshot.id,
+        snapshot.x,
+        snapshot.y,
+        snapshot.text,
+        snapshot.fill,
+        snapshot.stroke,
+        snapshot.strokeWidth
+      );
+    });
+
+    this.restorers.set("g", (snapshot) => {
+      if (snapshot.kind !== "g") {
+        throw this.invalidSnapshot(snapshot.kind);
+      }
+
+      const group = new GroupShape(
+        snapshot.id,
+        snapshot.fill,
+        snapshot.stroke,
+        snapshot.strokeWidth
+      );
+
+      for (const childSnapshot of snapshot.children) {
+        group.appendChild(this.restore(childSnapshot));
+      }
+
+      return group;
+    });
   }
 
   public create(
@@ -117,5 +225,22 @@ export class ShapeFactory {
     }
 
     return creator(id, parameters);
+  }
+
+  public restore(snapshot: ShapeSnapshot): Shape {
+    const restorer = this.restorers.get(snapshot.kind);
+
+    if (restorer === undefined) {
+      throw this.invalidSnapshot(snapshot.kind);
+    }
+
+    return restorer(snapshot);
+  }
+
+  private invalidSnapshot(kind: string): ApplicationError {
+    return new ApplicationError(
+      "INVALID_SNAPSHOT",
+      `unknown snapshot shape type: ${kind}`
+    );
   }
 }

@@ -258,7 +258,8 @@ describe("basic editing commands", () => {
     );
     expect(editor.execute("help")).toContain("init [w] [h]");
     expect(editor.execute("help")).not.toContain("tree [id]");
-    expect(editor.execute("help")).not.toContain("undo");
+    expect(editor.execute("help")).toContain("undo");
+    expect(editor.execute("help")).toContain("redo");
   });
 
   it("reports unknown commands without changing the current document", () => {
@@ -267,7 +268,7 @@ describe("basic editing commands", () => {
     editor.execute("create", "g", "scene");
     const document = editor.document;
 
-    expect(() => editor.execute("undo")).toThrow("unknown command: undo");
+    expect(() => editor.execute("save")).toThrow("unknown command: save");
     expect(() => editor.execute("tree")).toThrow("unknown command: tree");
     expect(editor.document).toBe(document);
   });

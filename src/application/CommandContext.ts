@@ -8,4 +8,6 @@ export interface CommandContext {
   requireDocument(): SvgDocument;
   requireShape(id: string): Shape;
   requireContainer(id: string): GroupShape;
+  undo(): void;
+  redo(): void;
 }

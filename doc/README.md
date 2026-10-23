@@ -2,12 +2,12 @@
 
 ## 1. 当前阶段与边界
 
-当前已完成 Lab1 Phase 4，本文件记录图形模型接入命令、REPL 以及组合/层级操作后的实际结构。仓库现在支持基础编辑命令与 `group/ungroup/addto/front/back`；CommandHistory、IO 和显示类命令仍将在后续阶段实现。
+当前已完成 Lab1 Phase 5，本文件记录领域模型、命令、组合操作、文档 Memento 和撤销重做后的实际结构。仓库现在支持基础编辑、组合/层级操作及 `undo/redo`；SVG IO 和显示类命令仍将在后续阶段实现。
 
 后续阶段才做的工作：
 
 - 不实现 `box` 插件或任何插件注册机制的具体代码。
-- 不实现 CommandHistory、Memento、undo/redo、SVG 读写或显示类命令。
+- 不实现 SVG 读写或显示类命令。
 - 不把课程示例输出写成已通过的测试结果。
 
 功能验收契约见 [`Phase1AcceptanceChecklist.md`](Phase1AcceptanceChecklist.md)。
@@ -41,6 +41,13 @@ src/
 │   ├── ShapeFactory.ts
 │   ├── ShapeTypeNameVisitor.ts
 │   ├── ApplicationError.ts
+│   ├── history/
+│   │   ├── CommandHistory.ts
+│   │   ├── DocumentSnapshot.ts
+│   │   ├── DocumentSnapshotter.ts
+│   │   ├── HistoryEntry.ts
+│   │   ├── ShapeSnapshot.ts
+│   │   └── ShapeSnapshotVisitor.ts
 │   └── commands/
 │       ├── InitCommand.ts
 │       ├── CreateShapeCommand.ts
@@ -53,6 +60,8 @@ src/
 │       ├── AddToGroupCommand.ts
 │       ├── FrontCommand.ts
 │       ├── BackCommand.ts
+│       ├── UndoCommand.ts
+│       ├── RedoCommand.ts
 │       └── HelpCommand.ts
 ├── svg/
 │   ├── SvgDocumentReader.ts
@@ -93,6 +102,13 @@ Phase 3 实际应用/CLI 结构：
 - `ShapeFactory` 集中完成图形类型名到构造器的映射，且不包含 `box`。
 - `CommandLexer` 只处理空行、注释、空白和双引号；`CliApplication` 负责提示符、逐行读取、错误文本和输出流。
 
+Phase 5 历史结构：
+
+- `DocumentSnapshotter` 通过 `ShapeSnapshotVisitor` 捕获完整文档，并通过 `ShapeFactory.restore` 集中重建全部图形类型。
+- `DocumentSnapshot` 冻结画布尺寸和根节点快照；每个图形快照及 Group 子数组也被冻结。
+- `CommandHistory` 持有 undo/redo 两个栈、一个 IO barrier 和统一错误规则。
+- `EditorSession` 根据命令分类元数据决定普通执行、文档命令屏障或完整编辑事务；CLI 不接触历史栈。
+
 ### 2.2 组件/包依赖图
 
 ```plantuml
@@ -114,6 +130,8 @@ package "src/application" {
   [Editor Commands] as Commands
   [Command Registry] as Registry
   [Shape Factory] as Factory
+  [Snapshotter / Memento] as Snapshot
+  [Command History] as History
   [Document Ports] as Ports
 }
 
@@ -130,14 +148,20 @@ Main --> Cli
 Main --> Session
 Main --> Registry
 Main --> Factory
+Main --> Snapshot
 Main --> Svg
 Main --> Shapes
 Cli --> Session
 Cli --> Parser
 Session --> Registry
+Session --> Snapshot
+Session --> History
 Registry --> Commands
 Commands --> Factory
 Session --> Document
+Snapshot --> Document
+Snapshot --> Factory
+History --> Snapshot
 Commands --> Document
 Commands --> Shapes
 Svg ..|> Ports : implements
@@ -233,21 +257,17 @@ CliApplication
 
 CLI 只负责词法分析和文本 I/O；参数个数、类型、容器存在性等命令语法由 application 命令处理；几何和层级规则仍由 domain 处理。`EditorSession` 是当前工作文档和命令执行的单一入口，不会解析具体命令语法。
 
-为第五阶段 undo/redo 预留的方式：
+Phase 5 已实现通用历史机制：
 
-- CLI 与 `CommandExecutor` 接口无需改变；历史逻辑可以插入 `EditorSession.execute` 的统一事务边界。
-- 每个编辑命令已独立成类，后续可引入 `UndoableCommand` 扩展接口，而不把撤销逻辑散落到各命令或 CLI。
-- Memento 可以围绕一次成功的 registry dispatch 捕获文档前后状态；失败 dispatch 不进入历史。
-- 当前命令对象无状态，参数由每次调用传入，避免不同执行之间复用可变命令实例状态。
-
-后续阶段设计约定：
-
-- `UndoableEditCommand` 采用模板方法：先验证，再执行领域操作，最后形成可恢复状态。失败时不留下部分修改。
-- `CommandHistory` 维护 undo/redo 两个栈；一条用户命令对应一个历史单元。
-- 命令通过 `DocumentSnapshot`（Memento）记录执行前后的完整文档状态。相比为十几种命令分别编写逆操作，它对删除、重排、跨容器移动和后续插件内部结构更稳健，也更容易保证错误原子性。
-- 代价是每步保存整份文档，时间/空间复杂度为 O(文档大小)。本课程文档规模较小，这一取舍优先保证正确性与扩展性；若未来文档变大，可在 `Command` 接口不变的前提下换成结构化补丁。
-- 显示命令不进入历史。文档命令和 `canvas` 尺寸修改会清空历史并设置 IO 屏障；下一次成功编辑解除屏障，但不会恢复跨越 IO 的旧历史。
-- 命令的“成功”以领域操作全部完成且结果可生成为准。解析失败、验证失败和 IO 失败都不入栈、不清空 redo，也不改变文档。
+- `EditorCommand.category` 将命令声明为 `edit`、`document`、`readOnly` 或 `history`；`EditorSession` 按元数据处理，不使用大量命令名条件分支。
+- CLI 与 `CommandExecutor` 接口未改变；所有命令仍只经过 `EditorSession.execute`。
+- 编辑命令由 Session 统一捕获 before/after `DocumentSnapshot`，成功后才调用 `CommandHistory.record`。十个既有编辑命令没有新增任何逆操作。
+- `CommandHistory` 维护 undo/redo 栈；undo/redo 先尝试恢复快照，恢复成功后才移动栈指针。失败不会丢历史项。
+- 普通验证失败若未改变文档，不重建对象，保持原 `SvgDocument` 和 Shape 引用；未预期异常若导致部分修改，则用 before 快照恢复。
+- 成功 undo/redo 会完整重建新的 `SvgDocument`，旧 Shape 引用失效；后续命令始终按 ID 从当前文档重新查询。
+- 文档命令成功后清空两个栈并设置 IO 屏障。下一次成功编辑解除屏障并创建新单元，不能跨 init 恢复旧文档。
+- 只读命令与历史命令不进入编辑历史。
+- 每步保存整份文档，时间和空间复杂度为 O(文档大小)。本课程规模优先选择完整 Memento 的可靠性和扩展性；若文档变大，可保持 Command/History 接口而替换为增量补丁。
 
 命令名 `Map<string, EditorCommand>` 只在 `CommandRegistry` 中做名称到实现的查找；图形类型名只由 `ShapeFactory` 负责。除这两处外没有按字符串标签执行的图形分派。
 
@@ -278,6 +298,8 @@ Phase 4 同时增加 `assertCanMove`：所有叶子预检移动后的全部坐�
 
 已入档 Group 的公开树修改会抛出 `INVALID_TREE_MUTATION`，要求外部通过 `SvgDocument` 的结构 API。该错误与 `INVALID_STRUCTURE_OPERATION` 一起保证 Application 不会绕过索引。
 
+Phase 5 的 `CommandHistory` 使用 `HISTORY_UNAVAILABLE`、`IO_BARRIER` 和 `INVALID_SNAPSHOT` 表达历史边界与快照错误。IO 屏障下 undo/redo 统一输出 `undo not allowed after io command`；空栈分别输出 `nothing to undo`/`nothing to redo`。
+
 ## 3. 变化点与预留策略
 
 | 可能变化 | 影响位置 | 当前策略/理由 |
@@ -285,7 +307,7 @@ Phase 4 同时增加 `assertCanMove`：所有叶子预检移动后的全部坐�
 | 增加 `box` 等复合图形插件 | 插件注册、图形模板、序列化标记 | 内核面向 `Shape`/Composite 语义；当前不提前实现插件。后续由 ShapeProvider 扩展，不修改命令调用方 |
 | 新增基础图形类型 | `ShapeFactory`、具体 Shape、显示/序列化访问者 | 保留类层次和双重分派；新增形状的影响局限在工厂与访问者实现。插件阶段不应依赖这条路径扩展 |
 | Command 增加操作类型 | `application/commands`、命令注册表 | 一条命令一个类，历史只面向统一接口，无需修改 `CommandHistory` |
-| 文档规模增大，快照成本过高 | `DocumentSnapshot` 及命令基类 | 保持 Command API，替换为增量 Memento；当前不为小文档过度设计 diff 引擎 |
+| 文档规模增大，快照成本过高 | `DocumentSnapshot`、`DocumentSnapshotter`、`CommandHistory` | 保持 Command/History API，未来可替换为增量 Memento；当前优先完整快照的正确性 |
 | SVG 语法或第三方 XML 库变化 | `svg` 适配器 | 领域不依赖 XML DOM；端口隔离具体库和格式细节 |
 | CLI 语法扩展 | lexer/parser/command registry | 解析、分派和业务执行分离；语法变化不进入 domain |
 | 修改历史策略或 IO 限制 | `CommandHistory`、文档命令 | 历史策略集中，不散落在各命令或 CLI |
@@ -405,16 +427,42 @@ Phase 4 同时增加 `assertCanMove`：所有叶子预检移动后的全部坐�
 - 新增 `a,b,c → group newGroup c a → a,c` 回归断言，并同步修正同父、跨父和 Application 测试期望；旧测试没有被简单放宽。
 - 审查同时强化运行期测试：managed Group 对伪造 token 的 append/insert/remove/bind/release 全部拒绝，原生私有字段不出现在对象属性名中。group/ungroup/addto 的失败测试补充了形状几何状态断言。
 
+### 轮次 14：第五阶段历史架构实现（2026-10-23）
+
+- 设计初稿考虑为每个命令编写逆操作，但删除、重排、跨父分组和递归变换的逆状态复杂。最终采用 Session 统一事务 + 完整 Memento，保持一命令一类的 Command 体系不变。
+- 新增 `DocumentSnapshotter`/`ShapeSnapshotVisitor` 捕获六种图形、画布尺寸和完整层级；`ShapeFactory.restore` 复用原图形构造映射集中恢复类型，没有新增散落类型 switch。
+- 每个既有编辑命令只增加一行 `category = "edit"`；InitCommand、HelpCommand 和新 Undo/RedoCommand 分别声明其余三类。十个编辑命令的 execute 实现均未改写。
+- 文档快照中的对象和数组均冻结；测试验证修改原文档不会影响快照、快照对象不能被外部写入，并验证恢复后 ID、父关系、顺序、样式、文本和 Group capability token 均正确。
+
+### 轮次 15：实际失败与纠正（2026-10-23）
+
+- 首轮编译暴露 `ShapeVisitor<T>` 的泛型推断问题：实现对具体快照子类型返回值时，递归传给 Shape 基类会被推断成单一 Rect 快照。改为显式 `accept<ShapeSnapshot>`，保持一个访问者处理所有图形。
+- 旧测试仍断言 undo 是未知命令、help 不含 undo；第五阶段这是预期功能变化，更新为 save/tree 等仍未实现命令，并确认 help 显示 undo/redo。没有删除旧测试。
+- 架构测试最初禁止 Application 出现任何 Group append；但 ShapeFactory 恢复一个尚未入档的 Group 子树必须使用该合法构建接口。测试改为继续禁止命令/Session 绕过文档，同时允许 Factory 仅构建未入档对象。
+- 跨父结构历史测试的期望顺序初稿写错；按第四阶段确定的文档前序实际为 `nested, root, tail`，修正测试期望而非业务实现。
+- 自审发现保留的 `CommandRegistry.execute` 可让调用方绕过 Session 历史事务；移除该公开旁路，只保留 `resolve`，使 `EditorSession.execute` 成为唯一执行入口。
+- 全量专项测试稳定后，升级为 17 个测试文件、118 项通过。
+
+### 轮次 16：CLI 撤销与 IO 屏障验收（2026-10-23）
+
+- 实际回放两步 undo/redo：第一次 undo 恢复 move 前坐标，第二次恢复 group 前结构；两次 redo 依次恢复。
+- 实际回放 undo → 新编辑 → redo，最终 redo 输出 `error: nothing to redo`。
+- 实际回放 init → undo，以及再次 init 后 undo，均输出 `error: undo not allowed after io command`。
+- 手工验收之前增加自动化测试，覆盖 init 失败保留旧历史、IO 后失败编辑不解除屏障、首个成功编辑解除屏障、恢复失败不移动栈指针、中途异常回滚和普通验证失败保持对象身份。
+- 最后补充 CommandHistory 栈重置、真实 CLI undo/redo 流、before/after 快照捕获失败与执行旁路架构测试，最终为 17 个测试文件、123 项全部通过。
+
 ## 5. 一致性自查
 
-本节在每个开发阶段结束时更新；当前为 Phase 4 状态。
+本节在每个开发阶段结束时更新；当前为 Phase 5 状态。
 
-1. 模块划分：domain 保留类层次并负责缩放/移动预检、受控树结构和全局索引；application 具有会话、注册表、参数包装、图形工厂、类型名访问者和每命令一类；cli 具有词法器、解析错误与 REPL。实际结构与方案一致。
+1. 模块划分：domain 保留类层次并负责缩放/移动预检、受控树结构和全局索引；application 具有会话、注册表、参数包装、图形工厂、类型名访问者、快照/历史与每命令一类；cli 具有词法器、解析错误与 REPL。实际结构与方案一致。
 2. 依赖方向：domain 无 `node:*`、application、SVG、CLI 导入；application 可依赖 domain，无 CLI/SVG/Node API 导入；CLI 只依赖 application 接口和 Node 标准流/readline，没有直接导入 domain。`domainArchitecture.test.ts` 与 `cliArchitecture.test.ts` 自动检查。
 3. 分派集中：命令名只通过 `CommandRegistry` 映射，图形类型名只通过 `ShapeFactory` 映射；application/CLI 中没有 `switch`。几何和属性操作通过 Shape 多态执行，容器校验之外没有图形类型分支。
 4. 结构修改集中：Application 源码不调用 Group 的 append/remove 内部入口；五个结构命令调用 `SvgDocument` 聚合 API。已入档 Group 的直接公开修改由回归测试验证为拒绝。
-5. 阶段边界：`box`、tree/show/save/read/canvas、undo/redo 均未实现，help 只列出当前十二个真实可用命令。
-6. 错误与状态：应用边界把领域错误归一为 `ApplicationError`；CLI 捕获所有命令错误并继续循环。测试验证了非法参数、容器、ID、属性、缩放、移动和结构操作失败后的状态不变性。
+5. 历史集中：CLI 不访问历史栈；`CommandHistory` 和 Memento 只在 Application 中；Domain 不知道 undo/redo。`EditorSession.execute` 是唯一公共执行入口，`CommandRegistry` 只负责解析命令对象。
+6. 快照分派：捕获通过 ShapeVisitor 双重分派，恢复通过现有 `ShapeFactory` 的集中类型映射；没有新增图形类型 switch，也没有依赖 SVG 文件序列化。
+7. 阶段边界：`box`、tree/show/save/read/canvas 未实现；help 显示当前十四项真实命令（含 undo/redo）。
+8. 错误与状态：应用边界把领域错误归一为 `ApplicationError`；CLI 捕获所有命令错误并继续循环。测试覆盖编辑失败、快照恢复失败、历史空栈、IO 屏障、对象身份与中途异常回滚。
 
 ## 6. 质量保证手段
 
@@ -489,3 +537,19 @@ git status --short
 新增结构测试覆盖同父/跨父分组、容器嵌套、原始绘制顺序、组内 move/scale、失败原子性、锚定位置、嵌套 ungroup、空 Group、addto 跨容器和同容器、循环拒绝、根级拒绝、front/back 根级与嵌套排序、重复边界操作，以及真实 CLI 连续流程。
 
 仍未完成：tree/show、canvas、read/save、CommandHistory、undo/redo、IO 屏障、SVG round-trip、插件和 box。
+
+### Phase 5 实际验证结果（2026-10-23）
+
+| 命令/验证 | 结果 |
+|---|---|
+| `npm run build` | 退出码 0 |
+| `npm test` | 17 个测试文件、123 项全部通过 |
+| `npx tsc -p tsconfig.json --noEmit` | 退出码 0，包含测试文件 |
+| CLI 两步 undo/redo | move/group 状态按顺序恢复与重放 |
+| CLI undo → 新编辑 → redo | redo 报 `nothing to redo` |
+| CLI init barrier | undo/redo 均报 `undo not allowed after io command` |
+| `git diff --check` | 提交前检查空白错误 |
+
+专项覆盖六种图形完整快照、快照不可变、恢复顺序/样式/文本/父子关系/Group token、十类编辑命令撤销重做、复杂结构、redo 清理、失败编辑原子性、空栈、IO 屏障、init 失败保留历史、恢复失败不移动栈指针及中途异常回滚。
+
+仍未完成：tree/show、canvas、read/save、IO 命令的 SVG round-trip、插件和 box。

@@ -8,6 +8,7 @@ export class GroupCommand implements EditorCommand {
   public readonly usage = "group <newGid> <id1> <id2>...";
   public readonly description =
     "Group existing shapes while preserving document order.";
+  public readonly category = "edit";
 
   public execute(
     context: CommandContext,

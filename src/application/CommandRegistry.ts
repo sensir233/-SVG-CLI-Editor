@@ -1,6 +1,4 @@
 import { ApplicationError } from "./ApplicationError.js";
-import type { CommandContext } from "./CommandContext.js";
-import type { CommandResult } from "./CommandResult.js";
 import type { EditorCommand } from "./EditorCommand.js";
 
 export class CommandRegistry {
@@ -17,11 +15,7 @@ export class CommandRegistry {
     this._commands.set(command.name, command);
   }
 
-  public execute(
-    name: string,
-    arguments_: readonly string[],
-    context: CommandContext
-  ): CommandResult {
+  public resolve(name: string): EditorCommand {
     const command = this._commands.get(name);
 
     if (command === undefined) {
@@ -31,7 +25,7 @@ export class CommandRegistry {
       );
     }
 
-    return command.execute(context, arguments_);
+    return command;
   }
 
   public list(): readonly EditorCommand[] {

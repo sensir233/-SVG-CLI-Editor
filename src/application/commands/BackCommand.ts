@@ -8,6 +8,7 @@ export class BackCommand implements EditorCommand {
   public readonly name = "back";
   public readonly usage = "back <id>";
   public readonly description = "Move a shape to the back of its siblings.";
+  public readonly category = "edit";
 
   public execute(
     context: CommandContext,

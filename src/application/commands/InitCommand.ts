@@ -8,6 +8,7 @@ export class InitCommand implements EditorCommand {
   public readonly name = "init";
   public readonly usage = "init [w] [h]";
   public readonly description = "Create a new SVG document.";
+  public readonly category = "document";
 
   public execute(
     context: CommandContext,

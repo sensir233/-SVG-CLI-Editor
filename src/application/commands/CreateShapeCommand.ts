@@ -12,6 +12,7 @@ export class CreateShapeCommand implements EditorCommand {
     "create <type> <id> [params...] [in <containerId>]";
   public readonly description =
     "Create rect, circle, ellipse, line, text, or g.";
+  public readonly category = "edit";
 
   public constructor(private readonly factory: ShapeFactory) {}
 

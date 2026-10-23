@@ -7,6 +7,7 @@ export class UngroupCommand implements EditorCommand {
   public readonly name = "ungroup";
   public readonly usage = "ungroup <gid>";
   public readonly description = "Dissolve a nested group in place.";
+  public readonly category = "edit";
 
   public execute(
     context: CommandContext,

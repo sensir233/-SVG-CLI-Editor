@@ -8,6 +8,7 @@ export class FrontCommand implements EditorCommand {
   public readonly name = "front";
   public readonly usage = "front <id>";
   public readonly description = "Move a shape to the front of its siblings.";
+  public readonly category = "edit";
 
   public execute(
     context: CommandContext,

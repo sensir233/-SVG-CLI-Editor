@@ -8,6 +8,7 @@ export class MoveShapeCommand implements EditorCommand {
   public readonly name = "move";
   public readonly usage = "move <id> <dx> <dy>";
   public readonly description = "Move a shape or group by a delta.";
+  public readonly category = "edit";
 
   public execute(
     context: CommandContext,

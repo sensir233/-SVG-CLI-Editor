@@ -8,7 +8,7 @@
 - [x] 提供 `npm run build`、`npm run cli`、`npm test` 三个入口。
 - [x] 按领域、应用、SVG 适配、CLI 分层建立目录。
 - [x] 实现类封装、继承与多态；每个业务类独立文件且文件名与类名一致。
-- [ ] 实现 Command 模式，编辑命令支持 undo/redo。
+- [x] 实现 Command 模式，编辑命令支持 undo/redo。
 - [x] 实现 Composite 语义，容器与叶子的 `move`、`scale`、`set`、`delete` 用法一致。
 - [x] 按名称分派只出现在命令注册表和图形工厂中，不使用散落的 `switch(tag)`。
 - [x] `domain` 不依赖 `application`、`svg` 或 `cli`。
@@ -33,7 +33,7 @@
 - [x] 可选 `fill`/`stroke` 省略时，不生成相应属性。
 - [x] `create ... in <containerId>` 可把新图形直接挂入已存在的 `g`。
 - [x] `in` 目标不存在或不是容器时，分别返回规定错误。
-- [ ] 非法数字、缺失参数、多余参数和非正 `scale` 因子均失败，且状态与 undo/redo 栈不变。
+- [x] 非法数字、缺失参数、多余参数和非正 `scale` 因子均失败，且状态与 undo/redo 栈不变。
 - [x] 未注册类型报 `error: unknown shape type: <type> (is the plugin loaded?)`。
 - [x] `create box` 报未注册类型，不提前实现插件。
 - [x] `set` 支持公共外观属性和各类型白名单几何属性；`text` 额外支持文本内容。
@@ -44,7 +44,7 @@
 - [x] `delete` 删除叶子；删除容器时一并删除全部子孙。
 - [x] `move` 平移叶子；平移容器时所有子孙保持相对关系。
 - [x] `scale` 同乘全部几何位置和尺寸；容器操作递归到所有子孙。
-- [x] `group <newGid> <id...>` 保持被收编图形的相对顺序；undo 单元留待第五阶段。
+- [x] `group <newGid> <id...>` 保持被收编图形的相对顺序，并作为单个 undo 单元。
 - [x] `ungroup <gid>` 把子项按原顺序提升到父级并占据原位置。
 - [x] 根级容器拒绝 ungroup；复合图形插件规则留待插件阶段。
 - [x] `addto <gid> <id>` 把已有图形移到容器末尾，并拒绝自包含/循环层级。
@@ -53,14 +53,14 @@
 
 ## 5. Command、撤销与重做
 
-- [ ] 每个成功的编辑命令恰好形成一个 undo 单元。
-- [ ] 失败命令不修改文档、不写入历史、不清空 redo 栈。
-- [ ] `undo` 恢复上一编辑，`redo` 恢复被撤销编辑。
-- [ ] `group`、`ungroup`、递归 `move`/`scale` 均可一次完整撤销和重做。
-- [ ] 显示命令 `tree`、`show`、`help` 不进入历史。
-- [ ] undo 后的新编辑清空 redo 栈。
-- [ ] IO 类命令后 undo/redo 报 `error: undo not allowed after io command`。
-- [ ] IO 后首个成功编辑重新启用历史，同时不会允许跨越 IO 撤销旧状态。
+- [x] 每个成功的编辑命令恰好形成一个 undo 单元。
+- [x] 失败命令不修改文档、不写入历史、不清空 redo 栈。
+- [x] `undo` 恢复上一编辑，`redo` 恢复被撤销编辑。
+- [x] `group`、`ungroup`、递归 `move`/`scale` 均可一次完整撤销和重做。
+- [x] 只读命令 `help` 不进入历史；tree/show 留待后续。
+- [x] undo 后的新编辑清空 redo 栈。
+- [x] IO 类命令后 undo/redo 报 `error: undo not allowed after io command`。
+- [x] IO 后首个成功编辑重新启用历史，同时不会允许跨越 IO 撤销旧状态。
 
 ## 6. 显示与 CLI
 
@@ -151,4 +151,27 @@
 - [x] front/back 支持根级与嵌套排序，不改变父关系或几何；重复边界操作安全。
 - [x] 极大有限坐标/偏移导致移动溢出时，Group 全部后代均不改变。
 - [x] 连续 create → group → move → addto → front → ungroup → delete 经结构断言通过。
-- [x] CLI help 只列出当前真实实现命令，未提前显示 tree/show/undo。
+- [x] Phase 4 当时 help 只列出真实实现命令，未提前显示 tree/show。
+
+## 12. Phase 5 CommandHistory 与 Memento 验证证据
+
+本节只勾选第五阶段已经通过自动化测试和真实 CLI 验证的能力。
+
+- [x] `EditorCommand` 使用 edit/document/readOnly/history 分类元数据，Session 无命令名硬编码分支。
+- [x] `CommandHistory` 维护 undo/redo 双栈，一条编辑命令生成一个完整历史单元。
+- [x] `DocumentSnapshot` 保存画布、全部图形、样式、文本、根顺序和嵌套 Group 顺序。
+- [x] 快照对象与数组不可被外部修改；修改原文档后快照保持不变。
+- [x] `ShapeFactory` 集中恢复六种图形，不依赖 SVG 文件序列化或新增类型 switch。
+- [x] 恢复后 ID、父关系、兄弟顺序、几何、样式和 text 内容正确。
+- [x] 恢复后的 Group 重新具备文档 token，普通和伪造 token 的结构修改均被拒绝。
+- [x] create/delete/move/scale/set/group/ungroup/addto/front/back 均支持 undo/redo。
+- [x] 跨父分组、非相邻成员分组、嵌套递归变换和删除容器均作为单单元恢复。
+- [x] undo → redo → undo 与连续多步栈操作正确。
+- [x] undo 后新编辑清空 redo；失败编辑保留 redo 且不新增单元。
+- [x] help 不进入历史；空栈错误稳定。
+- [x] init 成功后清空历史并启用 IO 屏障；undo/redo 均被拒绝。
+- [x] init 失败不替换文档、不清历史；IO 后失败编辑不解除屏障。
+- [x] IO 后首个成功编辑解除屏障，不能跨越 init 恢复旧状态。
+- [x] 快照恢复失败不移动历史栈指针。
+- [x] 未预期中途异常回滚到 before 快照；普通预验证失败保持文档和 Shape 身份。
+- [x] `npm run build`、全量测试和包含测试文件的严格类型检查通过。
