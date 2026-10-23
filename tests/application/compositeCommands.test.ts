@@ -5,7 +5,7 @@ import { RectShape } from "../../src/domain/shapes/RectShape.js";
 import { TestEditor } from "./TestEditor.js";
 
 describe("grouping commands", () => {
-  it("groups same-parent and cross-parent shapes in command input order", () => {
+  it("groups same-parent and cross-parent shapes in document order", () => {
     const editor = new TestEditor();
     editor.execute("init");
     editor.execute("create", "g", "parent");
@@ -19,8 +19,8 @@ describe("grouping commands", () => {
     const same = editor.document.findById("same");
     expect(same).toBeInstanceOf(GroupShape);
     expect(same?.children.map((shape) => shape.id)).toEqual([
-      "second",
-      "first"
+      "first",
+      "second"
     ]);
     expect(editor.document.parentOf("same")).toBe(
       editor.document.findById("parent")
@@ -34,8 +34,8 @@ describe("grouping commands", () => {
       "cross"
     ]);
     expect(editor.document.findById("cross")?.children.map((shape) => shape.id)).toEqual([
-      "root",
-      "second"
+      "second",
+      "root"
     ]);
     expect(editor.document.parentOf("root")).toBe(
       editor.document.findById("cross")

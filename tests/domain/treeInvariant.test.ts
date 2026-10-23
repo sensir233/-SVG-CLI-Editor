@@ -17,6 +17,23 @@ describe("document-owned shape tree invariants", () => {
     expect(() => group.appendChildForDocument(rect, {})).toThrow(
       "cannot modify shape structure outside SvgDocument: group"
     );
+    expect(() => group.insertChildForDocument(rect, 0, {})).toThrow(
+      "cannot modify shape structure outside SvgDocument: group"
+    );
+    expect(() => group.removeChildForDocument("rect", {})).toThrow(
+      "cannot modify shape structure outside SvgDocument: group"
+    );
+    expect(() => group.bindDocumentToken({})).toThrow(
+      "group already belongs to another SvgDocument: group"
+    );
+    expect(() => group.releaseDocumentToken({})).toThrow(
+      "cannot modify shape structure outside SvgDocument: group"
+    );
+    expect(
+      Object.getOwnPropertyNames(group).some((name) =>
+        name.includes("structureToken") || name.includes("managedByDocument")
+      )
+    ).toBe(false);
     expect(document.rootChildren.map((shape) => shape.id)).toEqual([
       "group",
       "rect"

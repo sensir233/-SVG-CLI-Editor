@@ -195,7 +195,8 @@ export class SvgDocument {
       }
     }
 
-    const firstMember = members[0];
+    const orderedMembers = this.sortByDocumentOrder(members);
+    const firstMember = orderedMembers[0];
 
     if (firstMember === undefined) {
       throw new DomainError(
@@ -205,16 +206,16 @@ export class SvgDocument {
     }
 
     const originalParent = this.getParent(firstMember);
-    const sharedParent = members.every(
+    const sharedParent = orderedMembers.every(
       (member) => this.getParent(member) === originalParent
     );
     const insertionParent = sharedParent ? originalParent : null;
-    const rootMembers = members.filter(
+    const rootMembers = orderedMembers.filter(
       (member) => this.getParent(member) === null
     ).length;
     const insertionIndex = sharedParent
       ? Math.min(
-          ...members.map((member) =>
+          ...orderedMembers.map((member) =>
             this.indexOfChild(member, insertionParent)
           )
         )
@@ -224,11 +225,11 @@ export class SvgDocument {
     const group = new GroupShape(newGroupId);
     group.bindDocumentToken(this.#structureToken);
 
-    for (const member of members) {
+    for (const member of orderedMembers) {
       this.detachForStructureChange(member);
     }
 
-    for (const member of members) {
+    for (const member of orderedMembers) {
       group.appendChildForDocument(member, this.#structureToken);
     }
 
@@ -510,6 +511,45 @@ export class SvgDocument {
         shape.bindDocumentToken(this.#structureToken);
       }
     }
+  }
+
+  private sortByDocumentOrder(members: readonly Shape[]): Shape[] {
+    const order = new Map<Shape, number>();
+    const pending = [...this._rootChildren].reverse();
+    let position = 0;
+
+    while (pending.length > 0) {
+      const shape = pending.pop();
+
+      if (shape === undefined) {
+        continue;
+      }
+
+      order.set(shape, position);
+      position += 1;
+
+      for (let index = shape.children.length - 1; index >= 0; index -= 1) {
+        const child = shape.children[index];
+
+        if (child !== undefined) {
+          pending.push(child);
+        }
+      }
+    }
+
+    return [...members].sort((left, right) => {
+      const leftOrder = order.get(left);
+      const rightOrder = order.get(right);
+
+      if (leftOrder === undefined || rightOrder === undefined) {
+        throw new DomainError(
+          "INVALID_PARENT",
+          `inconsistent document order for group member`
+        );
+      }
+
+      return leftOrder - rightOrder;
+    });
   }
 
   private static parseCanvasDimension(

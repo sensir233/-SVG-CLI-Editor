@@ -203,7 +203,7 @@ set(id, attr, v)  -> shape.setAttribute(attr, v)
 
 | API | 结构语义 |
 |---|---|
-| `groupShapes(newId, members)` | 输入顺序成为新 Group 的子节点顺序；同父时插入在原首个成员位置，跨父时新 Group 追加到根末尾 |
+| `groupShapes(newId, members)` | 成员按当前文档树前序（SVG 绘制顺序）排列；同父时插入在原首个成员位置，跨父时新 Group 追加到根末尾 |
 | `ungroupShape(groupId)` | 仅允许嵌套 Group；直接子项按原顺序替换 Group 的原位置，根级 Group 拒绝 |
 | `addShapeToGroup(groupId, shapeId)` | 原地移动同一对象和整个子树，追加为目标 Group 最后一个子项；已在末尾时无操作 |
 | `bringToFront(id)` | 只调整当前父容器内的兄弟顺序 |
@@ -374,7 +374,7 @@ Phase 4 同时增加 `assertCanMove`：所有叶子预检移动后的全部坐�
 
 ### 轮次 10：组合与排序结构 API（2026-10-23）
 
-- 设计初稿只考虑同父节点分组，无法满足课程允许跨父容器分组的要求。最终明确策略：同父时在最早原成员位置插入新 Group；跨父时把新 Group 追加到根末尾。两组成员顺序始终按用户输入顺序。
+- 设计初稿只考虑同父节点分组，无法满足课程允许跨父容器分组的要求。最终明确策略：同父时在最早原成员位置插入新 Group；跨父时把新 Group 追加到根末尾。子项内部不在最终版本中采用参数输入顺序，详见轮次 13。
 - 跨父分组初稿用“修改前根节点长度”作为根末尾索引；自审发现若成员中包含根节点，移除后索引会越界。改为预计算并从根长度扣除将被移除的根成员数，保持“先验证、后修改”。
 - 所有结构操作集中在 `SvgDocument`：分组、解除分组、移动归属和前后排序均预先判断重复 ID、缺失节点、祖先/后代、父索引和插入位置。Application 新增五个命令，仅解析参数并调用这些领域 API。
 - `ungroup` 保留课程特例：任何 SVG 根级 Group 都拒绝，错误文本为 `cannot ungroup top-level container: <id>`；普通嵌套 Group 在原子项位置提升直接子项。
@@ -395,6 +395,15 @@ Phase 4 同时增加 `assertCanMove`：所有叶子预检移动后的全部坐�
 - 在不改变公开 Group 构建接口的前提下，`GroupShape` 改为使用 JavaScript 私有字段保存文档 capability token；`appendChildForDocument/insertChildForDocument/removeChildForDocument` 必须携带完全相同的 token，绑定和释放也通过 token 校验。
 - `SvgDocument` 自己持有不可从外部读取的 token，并在子树注册、分组、移动、解除分组和删除时统一传递。Architecture 测试继续确保 Application/CLI 不调用任何 Group 内部结构方法。
 - 回归测试新增“伪造空 token 仍被拒绝”。能力令牌加固后全量 92 项测试仍全部通过。
+
+### 轮次 13：group 顺序与原始需求一致性审查（2026-10-23）
+
+- 重新以 `phase_cli_1.md` 的“从各自原父容器摘出，保持相对顺序”为最高依据，对 `a,b,c` 中执行 `group newGroup c a` 增加回归测试。
+- 修复前测试真实失败，实际新 Group 子顺序为 `c,a`。这会反转两个成员的 SVG 绘制层级，与课程文字要求不一致。
+- 最小修复不改命令语法：所有成员在验证后先映射到当前文档树的前序位置，再按该位置排序。同父时自然恢复原兄弟顺序；跨父时使用整棵文档树的绘制前序，避免参数排列影响结果。
+- 同父分组仍锚定在最早原成员位置；跨父分组仍把新 Group 追加到根末尾。成员相对顺序与 Group 插入位置是两个独立语义。
+- 新增 `a,b,c → group newGroup c a → a,c` 回归断言，并同步修正同父、跨父和 Application 测试期望；旧测试没有被简单放宽。
+- 审查同时强化运行期测试：managed Group 对伪造 token 的 append/insert/remove/bind/release 全部拒绝，原生私有字段不出现在对象属性名中。group/ungroup/addto 的失败测试补充了形状几何状态断言。
 
 ## 5. 一致性自查
 
@@ -471,12 +480,12 @@ git status --short
 | 前置问题回归测试首轮 | 3 项全部失败，真实复现树索引绕过与 Group 部分移动 |
 | 修复后定向测试 | 树不变量、结构操作、应用组合命令共 27 项通过 |
 | `npm run build` | 退出码 0 |
-| `npm test` | 14 个测试文件、92 项全部通过 |
+| `npm test` | 14 个测试文件、93 项全部通过 |
 | `npx tsc -p tsconfig.json --noEmit` | 退出码 0，包含测试文件 |
 | CLI 正常结构序列 | group/addto/front/back/ungroup 实际成功 |
 | CLI 根级 ungroup | 按规定拒绝顶层 Group |
 | `git diff --cached --check` | 提交前检查空白错误 |
 
-新增结构测试覆盖同父/跨父分组、容器嵌套、输入顺序、组内 move/scale、失败原子性、锚定位置、嵌套 ungroup、空 Group、addto 跨容器和同容器、循环拒绝、根级拒绝、front/back 根级与嵌套排序、重复边界操作，以及真实 CLI 连续流程。
+新增结构测试覆盖同父/跨父分组、容器嵌套、原始绘制顺序、组内 move/scale、失败原子性、锚定位置、嵌套 ungroup、空 Group、addto 跨容器和同容器、循环拒绝、根级拒绝、front/back 根级与嵌套排序、重复边界操作，以及真实 CLI 连续流程。
 
 仍未完成：tree/show、canvas、read/save、CommandHistory、undo/redo、IO 屏障、SVG round-trip、插件和 box。

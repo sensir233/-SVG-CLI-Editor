@@ -6,7 +6,29 @@ import { RectShape } from "../../src/domain/shapes/RectShape.js";
 import { SvgDocument } from "../../src/domain/SvgDocument.js";
 
 describe("SvgDocument grouping", () => {
-  it("groups same-parent shapes at the first member's position in input order", () => {
+  it("preserves original sibling order even when arguments are reversed", () => {
+    const document = new SvgDocument(800, 600);
+    const first = new RectShape("a", 0, 0, 1, 1);
+    const second = new RectShape("b", 0, 0, 1, 1);
+    const third = new RectShape("c", 0, 0, 1, 1);
+    document.addShape(first);
+    document.addShape(second);
+    document.addShape(third);
+
+    const group = document.groupShapes("newGroup", ["c", "a"]);
+
+    expect(group.children.map((shape) => shape.id)).toEqual(["a", "c"]);
+    expect(document.rootChildren.map((shape) => shape.id)).toEqual([
+      "newGroup",
+      "b"
+    ]);
+    expect(document.parentOf("a")).toBe(group);
+    expect(document.parentOf("c")).toBe(group);
+    expect(document.parentOf("b")).toBeNull();
+    expect(document.shapeCount).toBe(4);
+  });
+
+  it("preserves original sibling order and uses the earliest original position", () => {
     const document = new SvgDocument(800, 600);
     const parent = new GroupShape("parent");
     const first = new RectShape("first", 1, 1, 10, 10);
@@ -23,10 +45,7 @@ describe("SvgDocument grouping", () => {
       "group",
       "second"
     ]);
-    expect(group.children.map((shape) => shape.id)).toEqual([
-      "third",
-      "first"
-    ]);
+    expect(group.children.map((shape) => shape.id)).toEqual(["first", "third"]);
     expect(document.parentOf("group")).toBe(parent);
     expect(document.parentOf("third")).toBe(group);
     expect(document.parentOf("first")).toBe(group);
@@ -39,7 +58,7 @@ describe("SvgDocument grouping", () => {
     ]);
   });
 
-  it("groups across parents at the root end while preserving input order", () => {
+  it("groups across parents at the root end in document paint order", () => {
     const document = new SvgDocument(800, 600);
     const first = new RectShape("first", 0, 0, 10, 10);
     const parent = new GroupShape("parent");
@@ -58,9 +77,9 @@ describe("SvgDocument grouping", () => {
     ]);
     expect(parent.children).toHaveLength(0);
     expect(group.children.map((shape) => shape.id)).toEqual([
-      "last",
+      "first",
       "nested",
-      "first"
+      "last"
     ]);
     expect(document.parentOf("nested")).toBe(group);
     expect(document.parentOf("first")).toBe(group);
@@ -114,6 +133,18 @@ describe("SvgDocument grouping", () => {
     expect(document.shapeCount).toBe(3);
     expect(document.parentOf("first")).toBeNull();
     expect(document.parentOf("second")).toBeNull();
+    expect([first.x, first.y, first.width, first.height]).toEqual([
+      1,
+      1,
+      10,
+      10
+    ]);
+    expect([second.x, second.y, second.width, second.height]).toEqual([
+      2,
+      2,
+      10,
+      10
+    ]);
     expect(document.findById("group")).toBeUndefined();
   });
 
@@ -131,6 +162,12 @@ describe("SvgDocument grouping", () => {
     expect(parent.children.map((shape) => shape.id)).toEqual(["child"]);
     expect(document.parentOf("child")).toBe(parent);
     expect(document.shapeCount).toBe(2);
+    expect([child.x, child.y, child.width, child.height]).toEqual([
+      0,
+      0,
+      10,
+      10
+    ]);
   });
 });
 
@@ -199,6 +236,7 @@ describe("SvgDocument ungrouping", () => {
     ]);
     expect(top.children).toHaveLength(0);
     expect(document.shapeCount).toBe(2);
+    expect([rect.x, rect.y, rect.width, rect.height]).toEqual([0, 0, 10, 10]);
   });
 });
 
@@ -266,6 +304,12 @@ describe("SvgDocument addto", () => {
     expect(outer.children.map((shape) => shape.id)).toEqual(["inner"]);
     expect(inner.children.map((shape) => shape.id)).toEqual(["child"]);
     expect(document.shapeCount).toBe(3);
+    expect([child.x, child.y, child.width, child.height]).toEqual([
+      0,
+      0,
+      1,
+      1
+    ]);
   });
 });
 

@@ -140,8 +140,9 @@
 
 - [x] 已入档 Group 的公开 append/remove 被拒绝，内部入口还要求文档私有 capability token，不能绕过 `SvgDocument` 索引。
 - [x] `SvgDocument` 集中提供 group、ungroup、addto、front、back 结构入口。
-- [x] 同父分组按输入顺序建子节点，并插入最早原成员位置。
-- [x] 跨父分组按输入顺序建子节点，新 Group 追加到根末尾。
+- [x] 同父分组保持原兄弟绘制顺序，并插入最早原成员位置。
+- [x] 跨父分组按文档树前序（绘制顺序）建子节点，新 Group 追加到根末尾。
+- [x] `a,b,c` 上执行 `group newGroup c a` 得到子序 `a,c`，不反转绘制层级。
 - [x] 容器可作为分组目标，分组后 move/scale 递归作用于所有后代。
 - [x] 重复成员、缺失目标、新 ID 冲突、祖先与后代同时分组均原子拒绝。
 - [x] 嵌套 Group ungroup 后子项按原顺序占据原位置，空 Group 也可解散。
